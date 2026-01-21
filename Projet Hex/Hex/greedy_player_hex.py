@@ -45,21 +45,27 @@ class MyPlayer(PlayerHex):
         pq = []
         if self.piece_type == "R":
             for j in range(current_state.rep.dimensions[1]):
-                if env.get((0,j)) == "R":
+                objectives.append((current_state.rep.dimensions[0]-1, j))
+                if env.get((0,j)) is None:
+                    dist[0, j] = 1
+                elif env.get((0,j)).piece_type == "R":
                     dist[0, j] = 0
                 else:
-                    dist[0, j] = 1
+                    continue
                 heapq.heappush(pq, (dist[0, j], (0, j), None))
-                objectives.append((current_state.rep.dimensions[0]-1, j))
+
 
         else:
             for i in range(current_state.rep.dimensions[0]):
-                if env.get((i,0)) == "B":
+                objectives.append((i, current_state.rep.dimensions[1]-1))
+                if env.get((i,0)) is None:
+                    dist[i, 0] = 1
+                elif env.get((i,0)).piece_type == "B":
                     dist[i, 0] = 0
                 else:
-                    dist[i, 0] = 1
+                    continue
                 heapq.heappush(pq, (dist[i, 0], (i, 0), None))
-                objectives.append((i, current_state.rep.dimensions[1]-1))
+
         path=[]
         while len(pq) != 0:
             d, (i, j), pred = heapq.heappop(pq)
