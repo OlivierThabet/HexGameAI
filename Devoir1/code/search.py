@@ -96,9 +96,22 @@ def depthFirstSearch(problem:SearchProblem)->List[Direction]:
     print("Start's successors:", problem.getSuccessors(problem.getStartState()))
     """
 
-    '''
-        INSÉREZ VOTRE SOLUTION À LA QUESTION 1 ICI
-    '''
+    s = problem.getStartState()
+    L = util.Stack()
+    L.push((s, [])) # on stocke des tuples (état, chemin pour y arriver)
+    visited = []
+    while not L.isEmpty():
+        s = L.pop()
+        if s[0] not in visited:
+            visited.append(s[0])
+            if problem.isGoalState(s[0]):
+                return s[1]
+            else:
+                for successor, action, stepCost in problem.getSuccessors(s[0]):
+                    if successor not in visited:
+                        L.push((successor, s[1] + [action]))
+    return []
+
 
     util.raiseNotDefined()
 
@@ -106,20 +119,43 @@ def depthFirstSearch(problem:SearchProblem)->List[Direction]:
 def breadthFirstSearch(problem:SearchProblem)->List[Direction]:
     """Search the shallowest nodes in the search tree first."""
 
-
-    '''
-        INSÉREZ VOTRE SOLUTION À LA QUESTION 2 ICI
-    '''
+    s = problem.getStartState()
+    L = util.Queue()
+    L.push((s, []))
+    visited = []
+    while not L.isEmpty():
+        s = L.pop()
+        if s[0] not in visited:
+            visited.append(s[0])
+            if problem.isGoalState(s[0]):
+                return s[1]
+            else:
+                for successor, action, stepCost in problem.getSuccessors(s[0]):
+                    if successor not in visited:
+                        L.push((successor, s[1] + [action]))
+    return []
 
     util.raiseNotDefined()
 
 def uniformCostSearch(problem:SearchProblem)->List[Direction]:
     """Search the node of least total cost first."""
 
+    s = problem.getStartState()
+    L = util.PriorityQueue()
+    L.push((s, [], 0), 0) 
+    visited = []
 
-    '''
-        INSÉREZ VOTRE SOLUTION À LA QUESTION 3 ICI
-    '''
+    while not L.isEmpty():
+        s = L.pop()
+        if s[0] not in visited:
+            visited.append(s[0])
+            if problem.isGoalState(s[0]):
+                return s[1]
+            else:
+                for successor, action, stepCost in problem.getSuccessors(s[0]):
+                    if successor not in visited:
+                        L.push((successor, s[1] + [action], s[2] + stepCost), s[2] + stepCost)
+    return []
 
     util.raiseNotDefined()
 
@@ -135,6 +171,22 @@ def aStarSearch(problem:SearchProblem, heuristic=nullHeuristic)->List[Direction]
     '''
         INSÉREZ VOTRE SOLUTION À LA QUESTION 4 ICI
     '''
+    s = problem.getStartState()
+    L = util.PriorityQueue()
+    L.push((s, [], 0), 0) 
+    visited = []
+
+    while not L.isEmpty():
+        s = L.pop()
+        if s[0] not in visited:
+            visited.append(s[0])
+            if problem.isGoalState(s[0]):
+                return s[1]
+            else:
+                for successor, action, stepCost in problem.getSuccessors(s[0]):
+                    if successor not in visited:
+                        L.push((successor, s[1] + [action], s[2] + stepCost), s[2] + stepCost + heuristic(successor, problem)) # Attention heuristic prend le successor en argument
+    return []
 
     util.raiseNotDefined()
 
