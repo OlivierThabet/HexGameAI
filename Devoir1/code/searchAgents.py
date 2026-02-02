@@ -472,6 +472,26 @@ class AStarFoodSearchAgent(SearchAgent):
         self.searchFunction = lambda prob: search.aStarSearch(prob, foodHeuristic)
         self.searchType = FoodSearchProblem
 
+def mazeDistanceBFS(start, goal, walls):
+    if start == goal:
+        return 0
+
+    L = util.Queue()
+    L.push((start, 0))
+    visited = set([start])
+
+    while not L.isEmpty():
+        (x, y), dist = L.pop()
+
+        for nx, ny in [(x+1,y), (x-1,y), (x,y+1), (x,y-1)]:
+            if not walls[nx][ny] and (nx, ny) not in visited:
+                if (nx, ny) == goal:
+                    return dist + 1
+                visited.add((nx, ny))
+                L.push(((nx, ny), dist + 1))
+
+    return float('inf')
+
 def foodHeuristic(state, problem: FoodSearchProblem):
     """
     Your heuristic for the FoodSearchProblem goes here.
@@ -505,7 +525,20 @@ def foodHeuristic(state, problem: FoodSearchProblem):
     '''
         INSÉREZ VOTRE SOLUTION À LA QUESTION 7 ICI
     '''
+    
+    foods = foodGrid.asList()
 
+    if not foods:
+        return 0
+   
+    cache = problem.heuristicInfo.setdefault('mazeDistCache', {})
 
-    return 0
-
+    max_to_food = 0
+    for food in foods:
+        key = (position, food)
+        if key not in cache:
+            cache[key] = mazeDistanceBFS(position, food, problem.walls)
+        d = cache[key]
+        if d > max_to_food:
+            max_to_food = d
+    return max_to_food

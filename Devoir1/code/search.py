@@ -98,7 +98,7 @@ def depthFirstSearch(problem:SearchProblem)->List[Direction]:
 
     s = problem.getStartState()
     L = util.Stack()
-    L.push((s, [])) # on stocke des tuples (état, chemin pour y arriver)
+    L.push((s, []))
     visited = []
     while not L.isEmpty():
         s = L.pop()
@@ -185,7 +185,7 @@ def aStarSearch(problem:SearchProblem, heuristic=nullHeuristic)->List[Direction]
             else:
                 for successor, action, stepCost in problem.getSuccessors(s[0]):
                     if successor not in visited:
-                        L.push((successor, s[1] + [action], s[2] + stepCost), s[2] + stepCost + heuristic(successor, problem)) # Attention heuristic prend le successor en argument
+                        L.push((successor, s[1] + [action], s[2] + stepCost), s[2] + stepCost + heuristic(successor, problem))
     return []
 
     util.raiseNotDefined()
