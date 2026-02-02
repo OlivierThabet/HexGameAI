@@ -481,14 +481,14 @@ def mazeDistanceBFS(start, goal, walls):
     visited = set([start])
 
     while not L.isEmpty():
-        (x, y), dist = L.pop()
+        (x, y), goalDistance = L.pop()
 
         for nx, ny in [(x+1,y), (x-1,y), (x,y+1), (x,y-1)]:
             if not walls[nx][ny] and (nx, ny) not in visited:
                 if (nx, ny) == goal:
-                    return dist + 1
+                    return goalDistance + 1
                 visited.add((nx, ny))
-                L.push(((nx, ny), dist + 1))
+                L.push(((nx, ny), goalDistance + 1))
 
     return float('inf')
 
