@@ -528,10 +528,6 @@ def foodHeuristic(state, problem: FoodSearchProblem):
     '''
     
     foods = foodGrid.asList()
-
-    if not foods:
-        return 0
-   
     cache = problem.heuristicInfo.setdefault('mazeDistCache', {})
 
     max_to_food = 0
