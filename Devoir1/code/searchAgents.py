@@ -530,12 +530,12 @@ def foodHeuristic(state, problem: FoodSearchProblem):
     foods = foodGrid.asList()
     cache = problem.heuristicInfo.setdefault('mazeDistCache', {})
 
-    max_to_food = 0
+    maxToFood = 0
     for food in foods:
         key = (position, food)
         if key not in cache:
             cache[key] = mazeDistanceBFS(position, food, problem.walls)
         d = cache[key]
-        if d > max_to_food:
-            max_to_food = d
-    return max_to_food
+        if d > maxToFood:
+            maxToFood = d
+    return maxToFood
