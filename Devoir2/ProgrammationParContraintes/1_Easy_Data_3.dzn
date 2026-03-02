@@ -1,0 +1,12 @@
+n = 9;
+costumes = { Rose, Rouge, Jaune, Violet, Orange, Vert, Bleu, Azur, Brun };
+
+choix_costume = [| Orange, Orange, Azur, Azur, Azur,  Rouge, Rouge, Rouge, Brun
+                |  Orange, Azur,   Azur, Azur, Azur,  Rouge, Rouge, Rouge, Brun
+                |  Azur,   Azur,   Vert, Vert, Azur,  Azur,  Brun,  Brun,  Brun
+                |  Azur,   Azur,   Vert, Azur, Azur,  Azur,  Brun,  Rose,  Rose
+                |  Azur,   Violet, Vert, Azur, Jaune, Jaune, Brun,  Brun,  Rose
+                |  Violet, Violet, Vert, Azur, Jaune, Jaune, Bleu,  Bleu,  Rose
+                |  Violet, Vert,   Vert, Azur, Azur,  Azur,  Bleu,  Bleu,  Bleu
+                |  Violet, Violet, Vert, Vert, Vert,  Azur,  Azur,  Vert,  Bleu
+                |  Vert,   Vert,   Vert, Vert, Vert,  Vert,  Vert,  Vert,  Vert  |];

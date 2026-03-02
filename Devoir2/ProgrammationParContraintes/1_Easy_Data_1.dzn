@@ -1,0 +1,10 @@
+n = 7;
+costumes = { Rose, Rouge, Jaune, Violet, Orange, Vert, Bleu };
+
+choix_costume = [| Orange, Orange, Orange, Orange, Vert,  Vert,  Bleu
+                |  Jaune,  Orange, Orange, Orange, Bleu,  Bleu,  Bleu
+                |  Jaune,  Violet, Violet, Orange, Bleu,  Bleu,  Bleu
+                |  Jaune,  Jaune,  Orange, Orange, Bleu,  Bleu,  Rouge
+                |  Jaune,  Jaune,  Orange, Rose,   Rose,  Rose,  Rouge
+                |  Rouge,  Rouge,  Rouge,  Rouge,  Rose,  Rose,  Rouge
+                |  Rouge,  Rouge,  Rouge,  Rouge,  Rouge, Rouge, Rouge |];
