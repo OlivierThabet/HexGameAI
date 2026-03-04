@@ -52,9 +52,3 @@ Au premier tour, le 2ème joueur a la possibilité, au lieu de placer une pièce
 
 Pour joueur humain:
 Pour placer une pièce, il suffit de double-cliquer sur la case correspondante du plateau
-
-Pour effectuer le changement de couleur en tant que joueur humain, il suffit au deuxième joueur, au premier tour de double cliquer sur la pièce que le premier joueur vient de placer. 
-
-Pour les agents, afin d'inverser les couleurs, le second agent peut émettre une action de placer une pièce bleue (sa couleur actuelle) sur la case déjà occupée par le pion rouge. 
-
-A ce moment, le plateau ne changera pas, mais les couleurs des joueurs s'inverseront et ce sera au premier joueur de jouer. 

@@ -4,12 +4,14 @@ from typing import Generator, Optional
 
 from board_hex import BoardHex
 from player_hex import PlayerHex
+
 from seahorse.game.game_layout.board import Piece
 from seahorse.game.game_state import GameState
 from seahorse.game.stateful_action import StatefulAction
 from seahorse.game.stateless_action import StatelessAction
 from seahorse.utils.serializer import Serializable
 from seahorse.player.proxies import RemotePlayerProxy, LocalPlayerProxy, InteractivePlayerProxy
+
 
 class GameStateHex(GameState):
     """
@@ -21,9 +23,10 @@ class GameStateHex(GameState):
         players (list[Player]): list of players.
         rep (Representation): Representation of the game.
     """
+
     def __init__(self, scores: dict, active_player: PlayerHex, players: list[PlayerHex], rep: BoardHex, step: int,  *args, **kwargs) -> None:
         super().__init__(scores, active_player, players, rep)
-        self.max_step = rep.get_dimensions()[0] * rep.get_dimensions()[1] #+ 1 #+1 for the swap
+        self.max_step = rep.get_dimensions()[0] * rep.get_dimensions()[1]  # + 1 #+1 for the swap
         self.step = step
 
     def get_step(self) -> int:
@@ -46,7 +49,7 @@ class GameStateHex(GameState):
             return True
         return False
 
-    def get_neighbours(self, i: int, j: int) -> dict[str,tuple[str|Piece,tuple[int,int]]]:
+    def get_neighbours(self, i: int, j: int) -> dict[str, tuple[str | Piece, tuple[int, int]]]:
         return self.get_rep().get_neighbours(i, j)
 
     def in_board(self, index) -> bool:
@@ -62,7 +65,7 @@ class GameStateHex(GameState):
         if index[0] < 0 or index[0] >= self.get_rep().get_dimensions()[0] or index[1] < 0 or index[1] >= self.get_rep().get_dimensions()[1]:
             return False
         return True
-    
+
     def get_player_id(self, pid) -> PlayerHex | None:
         """
         Get the player with the given ID.
@@ -76,29 +79,14 @@ class GameStateHex(GameState):
         for player in self.players:
             if player.get_id() == pid:
                 return player
-    
+
     def generate_possible_stateful_actions(self) -> Generator[StatefulAction, None, None]:
         """
         Generate possible actions.
 
         Returns:
-            Generator[StatefulAction]: Generator of possible heavy actions.
+            Generator[StatefulAction]: Generator of possible stateful actions.
         """
-        # if self.step == 1:
-        #     #For the additional move of swapping players
-        #     current_rep = copy.copy(self.get_rep().get_env())
-        #     current_players = [copy_player_with_new_piece_type(self.players[1], "R"), copy_player_with_new_piece_type(self.players[0], "B")]
-        #     position = list(current_rep.keys())[0]
-        #     play_info = (position, "B", self.active_player.get_id())
-        #     new_board = BoardHex(env=current_rep, dim=self.get_rep().get_dimensions())
-        #     new_state = GameStateHex(
-        #         self.compute_scores(play_info=play_info),
-        #         current_players[1],  # Next player is now the second player
-        #         current_players,  # Swap players
-        #         new_board,
-        #         step=self.step + 1,
-        #     )
-        #     yield StatefulAction(self, new_state)
 
         for position in self.rep.get_empty():
             piece_type = self.get_active_player().get_piece_type()
@@ -106,10 +94,12 @@ class GameStateHex(GameState):
             b = current_rep.get_env()
             d = current_rep.get_dimensions()
             copy_b = copy.copy(b)
-            copy_b[position] = Piece(piece_type=piece_type, owner=self.get_active_player())
+            copy_b[position] = Piece(
+                piece_type=piece_type, owner=self.get_active_player())
             new_board = BoardHex(env=copy_b, dim=d)
-            play_info = (position, piece_type, self.get_active_player().get_id())
-            new_state =  GameStateHex(
+            play_info = (position, piece_type,
+                         self.get_active_player().get_id())
+            new_state = GameStateHex(
                 self.compute_scores(play_info=play_info),
                 self.compute_next_player(),
                 self.players,
@@ -118,21 +108,14 @@ class GameStateHex(GameState):
             )
             yield StatefulAction(self, new_state)
 
-                        
-
     def generate_possible_stateless_actions(self) -> Generator[StatelessAction, None, None]:
         """
-        Generate possible light actions for the current game state.
+        Generate possible stateless actions for the current game state.
 
         Returns:
-            Generator[StatelessAction]: Generator of possible light actions.
+            Generator[StatelessAction]: Generator of possible stateless actions.
 
         """
-        # if self.step == 1:
-        #     # For the additional move of swapping players
-        #     env_keys = list(self.rep.get_env().keys())
-        #     position = env_keys[0]
-        #     yield StatelessAction({"piece": "B", "position": position})
         for position in self.rep.get_empty():
             yield StatelessAction({"piece": self.get_active_player().get_piece_type(), "position": position})
 
@@ -148,27 +131,10 @@ class GameStateHex(GameState):
         """
         if not isinstance(action, StatelessAction):
             raise ValueError("The action must be a StatelessAction.")
-        
+
         piece_type, position = action.data["piece"], action.data["position"]
         current_rep = self.get_rep()
-        # if self.step == 1 and current_rep.get_env().get(position) is not None:
-        #     # If the first move is a swap, we need to swap the players and change the piece type
-        #     current_rep = self.get_rep()
-        #     play_info = (position, "B", self.active_player.get_id())
-        #     b = current_rep.get_env()
-        #     d = current_rep.get_dimensions()
-        #     copy_b = copy.copy(b)
-        #     new_board = BoardHex(env=copy_b, dim=d)
-        #     current_players = [copy_player_with_new_piece_type(self.players[1], "R"), copy_player_with_new_piece_type(self.players[0], "B")]
-        #     next_state = GameStateHex(
-        #         self.compute_scores(play_info=play_info),
-        #         current_players[1],  # Next player is now the second player
-        #         current_players,  # Swap players
-        #         new_board,
-        #         step=self.step + 1,
-        #     )
-        #     return next_state
-        
+
         if current_rep.get_env().get(position) is not None:
             # If the position is already occupied, we return the current state without changes
             # This is a fallback to ensure the game state remains valid
@@ -179,11 +145,12 @@ class GameStateHex(GameState):
                 current_rep,
                 step=self.step,
             )
-        
+
         b = current_rep.get_env()
         d = current_rep.get_dimensions()
         copy_b = copy.copy(b)
-        copy_b[position] = Piece(piece_type=piece_type, owner=self.get_active_player())
+        copy_b[position] = Piece(
+            piece_type=piece_type, owner=self.get_active_player())
         new_board = BoardHex(env=copy_b, dim=d)
         play_info = (position, piece_type, self.active_player.get_id())
         return GameStateHex(
@@ -193,34 +160,31 @@ class GameStateHex(GameState):
             new_board,
             step=self.step + 1,
         )
-    
+
     def convert_stateful_action_to_stateless_action(self, stateful_action: StatefulAction) -> StatelessAction:
         """
-        Generate a light action from a heavy action.
+        Generate a stateless action from a stateful action.
 
         Args:
-            stateful_action (StatefulAction): The heavy action to convert.
+            stateful_action (StatefulAction): The stateful action to convert.
 
         Returns:
-            StatelessAction: The generated light action.
+            StatelessAction: The generated stateless action.
         """
         if not isinstance(stateful_action, StatefulAction):
-            raise ValueError("The heavy action must be an instance of StatefulAction.")
-        
+            raise ValueError(
+                "The action must be an instance of StatefulAction.")
+
         current_state = stateful_action.get_current_game_state()
         next_state = stateful_action.get_next_game_state()
-        # if current_state.get_step() == 1 and len(next_state.get_rep().get_env()) == 1:
-        #     # If the heavy action is the first move (swap players), we return the light action for the swap
-        #     position = next_state.get_rep().get_empty()[0]
-        #     return StatelessAction({"piece": "B", "position": position})
-        
+
         dim = current_state.get_rep().get_dimensions()[0]
         for i in range(dim):
             for j in range(dim):
                 if current_state.get_rep().get_env().get((i, j)) != next_state.get_rep().get_env().get((i, j)):
                     piece_type = next_state.get_rep().get_env().get((i, j)).get_type()
                     return StatelessAction({"piece": piece_type, "position": (i, j)})
-        raise ValueError("No light action found in the heavy action.")
+        raise ValueError("No stateless action found in the action.")
 
     def convert_gui_data_to_action_data(self, gui_data: dict) -> dict:
         """
@@ -233,7 +197,7 @@ class GameStateHex(GameState):
             dict: The converted action data.
         """
         return {"piece": gui_data["piece"], "position": tuple(gui_data["position"])}
-    
+
     def compute_scores(self, play_info: tuple) -> dict[int, float]:
         """
         Compute the score of each player in a list.
@@ -248,51 +212,53 @@ class GameStateHex(GameState):
         pos, piece_type, id_player = play_info
         if self.get_rep().get_env().get(pos) is not None and self.step == 1:
             return {player1: 0.0, player2: 0.0}
-        self.get_rep().get_env()[pos] = Piece(piece_type=piece_type, owner=self.get_player_id(id_player))
+        self.get_rep().get_env()[pos] = Piece(
+            piece_type=piece_type, owner=self.get_player_id(id_player))
         dim = self.get_rep().get_dimensions()[0]
         visited = set()
-        def dfs_bot(i,j):
-            if (i,j) in visited:
+
+        def dfs_bot(i, j):
+            if (i, j) in visited:
                 return False
-            visited.add((i,j))
+            visited.add((i, j))
             if i == dim-1:
                 return True
-            for k, v in self.get_neighbours(i,j).items():
+            for k, v in self.get_neighbours(i, j).items():
                 t, (ni, nj) = v
-                if t == piece_type and (ni,nj) not in visited:
-                    if dfs_bot(ni,nj):
+                if t == piece_type and (ni, nj) not in visited:
+                    if dfs_bot(ni, nj):
                         return True
             return False
-        
-        def dfs_right(i,j):
-            if (i,j) in visited:
+
+        def dfs_right(i, j):
+            if (i, j) in visited:
                 return False
-            visited.add((i,j))
+            visited.add((i, j))
             if j == dim-1:
                 return True
-            for k, v in self.get_neighbours(i,j).items():
+            for k, v in self.get_neighbours(i, j).items():
                 t, (ni, nj) = v
-                if t == piece_type and (ni,nj) not in visited:
-                    if dfs_right(ni,nj):
+                if t == piece_type and (ni, nj) not in visited:
+                    if dfs_right(ni, nj):
                         return True
             return False
 
         if id_player == player1:
             for j in range(dim):
-                piece = self.get_rep().get_env().get((0,j), -1)
+                piece = self.get_rep().get_env().get((0, j), -1)
                 if piece != -1 and piece.get_type() == piece_type:
-                    if dfs_bot(0,j):
+                    if dfs_bot(0, j):
                         self.get_rep().get_env().pop(pos)
                         return {player1: 1.0, player2: 0.0}
         else:
             for i in range(dim):
-                piece = self.get_rep().get_env().get((i,0), -1)
+                piece = self.get_rep().get_env().get((i, 0), -1)
                 if piece != -1 and piece.get_type() == piece_type:
-                    if dfs_right(i,0):
+                    if dfs_right(i, 0):
                         self.get_rep().get_env().pop(pos)
                         return {player1: 0.0, player2: 1.0}
         self.get_rep().get_env().pop(pos)
-        return  {player1: 0, player2: 0}
+        return {player1: 0, player2: 0}
 
     def __str__(self) -> str:
         if not self.is_done():
@@ -300,66 +266,29 @@ class GameStateHex(GameState):
         return "The game is finished!"
 
     def to_json(self) -> dict:
-        data = { i:j for i,j in self.__dict__.items() if i!="_possible_stateless_actions" and i!="_possible_stateful_actions"}
-        data["step"] = self.step
-        return data
-    
+        return {"scores": self.scores,
+                "players": [x.to_json() for x in self.players],
+                "active_player": self.active_player.to_json(),
+                "rep": self.rep.to_json(),
+                "step": self.step
+                }
+
     @classmethod
-    def from_json(_,data:str,*,active_player:Optional[PlayerHex]=None) -> Serializable:
-        d = json.loads(data)
-        scores = {int(k):v for k,v in d["scores"].items()}
-        players = [PlayerHex.from_json(json.dumps(x)) for x in d["players"] ]
-        rep = BoardHex.from_json(json.dumps(d["rep"]))
-        step = d.get("step", 0)
+    def from_json(_, data: str | dict, *,
+                  active_player: Optional[PlayerHex] = None) -> Serializable:
+        if isinstance(data, str):
+            d = json.loads(data)
+        else:
+            d = data
+
+        scores = {int(k): v for k, v in d["scores"].items()}
+        players = [PlayerHex.from_json(x) for x in d["players"]]
+        rep = BoardHex.from_json(d["rep"])
+
+        step = int(d["step"])
 
         if active_player is None:
-            active_player = players[0]
+            active_player = PlayerHex.from_json(d["active_player"])
 
         return GameStateHex(scores=scores, active_player=active_player,
                             players=players, rep=rep, step=step)
-
-def copy_player_with_new_piece_type(player, new_piece_type):
-    """This method, used when swapping players, allows to copy a player with a new piece type, while keeping the other attributes intact."""
-    cls = type(player)
-
-    if isinstance(player, RemotePlayerProxy):
-        orig_mimics = player.mimics
-        new_mimics = copy_player_with_new_piece_type(orig_mimics, new_piece_type)
-        new_proxy = cls(lambda *args, **kwargs: new_mimics)
-        new_proxy.mimics = new_mimics
-        new_proxy.sid = player.sid
-        new_proxy.sio = player.sio
-        new_proxy.connected = player.connected
-        return new_proxy
-
-    if isinstance(player, InteractivePlayerProxy):
-        new_wrapped = copy_player_with_new_piece_type(player.wrapped_player, new_piece_type)
-        new_proxy = cls(new_wrapped, gui_path=player.path)
-        new_proxy.shared_sid = player.shared_sid
-        new_proxy.sid = player.sid
-        new_proxy.sio = player.sio
-        new_proxy.connected = player.connected
-        return new_proxy
-
-    if isinstance(player, LocalPlayerProxy):
-        new_wrapped = copy_player_with_new_piece_type(player.wrapped_player, new_piece_type)
-        new_proxy = cls(new_wrapped)
-        new_proxy.sio = player.sio
-        new_proxy.connected = player.connected
-        return new_proxy
-
-    # Base case (Not a proxy)
-    name = getattr(player, 'name', 'bob')
-    new_player = cls(new_piece_type, name)
-    # Copy other fields by reference
-    exclude = {'piece_type', 'name'}
-    for attr, val in player.__dict__.items():
-        if attr not in exclude:
-            setattr(new_player, attr, val)
-    return new_player
-
-
-
-def get_constructor_args(player):
-    return (player.piece_type, getattr(player, 'name', 'bob'))
-

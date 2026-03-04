@@ -3,6 +3,7 @@ from player_hex import PlayerHex
 from game_state_hex import GameStateHex
 from seahorse.game.action import Action
 
+
 class MyPlayer(PlayerHex):
     """
     Player class for Hex game that makes random moves.
@@ -11,7 +12,7 @@ class MyPlayer(PlayerHex):
         piece_type (str): piece type of the player
     """
 
-    def __init__(self, piece_type: str, name: str = "bob",*args) -> None:
+    def __init__(self, piece_type: str, name: str = "bob", *args) -> None:
         """
         Initialize the PlayerHex instance.
 
@@ -20,8 +21,7 @@ class MyPlayer(PlayerHex):
             name (str, optional): Name of the player (default is "bob")
             time_limit (float, optional): the time limit in (s)
         """
-        super().__init__(piece_type,name,*args)
-
+        super().__init__(piece_type, name, *args)
 
     def compute_action(self, current_state: GameStateHex, **kwargs) -> Action:
         """
@@ -34,6 +34,6 @@ class MyPlayer(PlayerHex):
         Returns:
             Action: Randomly selected feasible action
         """
-        possible_actions = current_state.get_possible_stateless_actions()
+        possible_actions = current_state.get_possible_stateful_actions()
         action = random.choice(list(possible_actions))
         return action

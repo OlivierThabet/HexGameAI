@@ -1,8 +1,9 @@
 from typing import Iterable
 
-from seahorse.game.game_state import GameState
+from player_hex import PlayerHex
+from game_state_hex import GameStateHex
+
 from seahorse.game.master import GameMaster
-from seahorse.player.player import MimicPlayer
 from seahorse.player.proxies import PlayerProxy
 
 
@@ -19,10 +20,14 @@ class MasterHex(GameMaster):
         log_level (str): Name of the log file
     """
 
-    def __init__(self, name: str, initial_game_state: GameState, players_iterator: Iterable[PlayerProxy], log_level: str, port: int = 8080, hostname: str = "localhost", time_limit: int = 60*15) -> None:
-        super().__init__(name, initial_game_state, players_iterator, log_level, port, hostname, time_limit)
-        
-    def compute_winner(self) -> list[MimicPlayer]:
+    def __init__(self, name: str, initial_game_state: GameStateHex,
+                 players_iterator: Iterable[PlayerProxy],
+                 log_level: str, port: int = 8080,
+                 hostname: str = "localhost", time_limit: int = 60*15) -> None:
+        super().__init__(name, initial_game_state, players_iterator,
+                         log_level, port, hostname, time_limit)
+
+    def compute_winner(self) -> list[PlayerHex]:
         """
         Computes the winners of the game based on the scores.
 
@@ -31,7 +36,7 @@ class MasterHex(GameMaster):
 
         Returns:
             Iterable[Player]: list of the players who won the game
-        """        
+        """
         scores = self.current_game_state.get_scores()
         max_val = max(scores.values())
         players_id = list(filter(lambda key: scores[key] == max_val, scores))
@@ -39,4 +44,5 @@ class MasterHex(GameMaster):
         return itera
 
     def get_custom_stats(self):
-        return [{"name": "coups", "value": self.current_game_state.get_step(), "agent_id":-1}]
+        return [{"name": "coups",
+                 "value": self.current_game_state.get_step(), "agent_id": -1}]

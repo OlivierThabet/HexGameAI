@@ -96,14 +96,17 @@ class BoardHex(Board):
         Returns:
             dict: The JSON representation of the board.
         """
-        return {"env":{str(x):y for x,y in self.env.items()},"dim":self.dimensions}
+        return {"env":{str(x):y.to_json() for x,y in self.env.items()},"dim":self.dimensions}
 
     @classmethod
-    def from_json(cls, data) -> BoardHex:
-        d = json.loads(data)
-        dd = json.loads(data)
-        for x,y in d["env"].items():
-            # TODO eval is unsafe
-            del dd["env"][x]
-            dd["env"][eval(x)] = Piece.from_json(json.dumps(y))
-        return cls(**dd)
+    def from_json(cls, data: str | dict) -> BoardHex:
+        if isinstance(data, str):
+            data = json.loads(data)
+        else:
+            data = data
+
+        return cls(**{
+            "env": {eval(x): Piece.from_json(y)
+                    for x, y in data["env"].items()},
+            "dim": data["dim"]
+        })

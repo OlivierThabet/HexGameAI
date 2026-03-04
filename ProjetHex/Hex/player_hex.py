@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import ast
+import json
 
 from seahorse.player.player import Player
 
@@ -49,5 +49,5 @@ class PlayerHex(Player):
     @classmethod
     def from_json(cls, data) -> PlayerHex:
         if isinstance(data, str):
-            data = ast.literal_eval(data)
+            data = json.loads(data)
         return PlayerHex(**data)

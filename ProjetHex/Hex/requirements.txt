@@ -1,3 +1,4 @@
 colorama
-seahorse>=1.2.1
+seahorse>=1.2.3
 numpy
+scipy
