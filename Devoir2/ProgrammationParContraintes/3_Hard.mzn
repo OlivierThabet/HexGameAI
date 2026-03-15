@@ -1,5 +1,5 @@
-% NOM_ETUDIANT_1 (MATRICULE_1)
-% NOM_ETUDIANT_2 (MATRICULE_2)
+% Vinet-Larouche Mattias (2212749)
+% Thabet Olivier (2294559)
 
 include "globals.mzn"; 
 
@@ -46,9 +46,44 @@ var 0..max_trajet: total_temps_attentes = sum(temps_attente);
 var int: temps_trajet;
 
 %-----------------------------------------------------------------------------%
-% Partie étudiant
+% Étudiant
 %-----------------------------------------------------------------------------%
 
+% chemins
+constraint chemin_tournee[n] = 1;
+constraint alldifferent(chemin_tournee);
+constraint circuit_tournee[chemin_tournee[n]] = chemin_tournee[1];
+constraint forall(i in 1..n-1)(
+    circuit_tournee[chemin_tournee[i]] = chemin_tournee[i+1]
+);
+
+% contraintes de distance pour boucler la boucle
+constraint temps_attente[chemin_tournee[1]] = 
+    max(0, fenetre_arrivee[chemin_tournee[1], 1] - distance[1, chemin_tournee[1]]);
+constraint cumul_temps[1] = 
+    distance[1, chemin_tournee[1]] + temps_attente[chemin_tournee[1]];
+constraint distance[1, chemin_tournee[1]] <= fenetre_arrivee[chemin_tournee[1], 2];
+
+% contraintes de distance sur les autres villes
+constraint forall(i in 2..n)(
+    % temps attente
+    temps_attente[chemin_tournee[i]] = max(0,
+        fenetre_arrivee[chemin_tournee[i], 1]
+        - cumul_temps[i-1]
+        - distance[chemin_tournee[i-1], chemin_tournee[i]])
+    /\
+    % temps cumul
+    cumul_temps[i] = cumul_temps[i-1]
+                   + distance[chemin_tournee[i-1], chemin_tournee[i]]
+                   + temps_attente[chemin_tournee[i]]
+    /\
+    % fenetre sortie
+    cumul_temps[i-1] + distance[chemin_tournee[i-1], chemin_tournee[i]]
+        <= fenetre_arrivee[chemin_tournee[i], 2]
+);
+
+constraint temps_trajet = cumul_temps[n];
+solve minimize temps_trajet;
 
 %-----------------------------------------------------------------------------%
 

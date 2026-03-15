@@ -1,5 +1,5 @@
-% NOM_ETUDIANT_1 (MATRICULE_1)
-% NOM_ETUDIANT_2 (MATRICULE_2)
+% Vinet-Larouche Mattias (2212749)
+% Thabet Olivier (2294559)
 
 include "globals.mzn";
 
