@@ -1,0 +1,136 @@
+\documentclass[11pt]{article}
+
+% Typo
+\usepackage[T1]{fontenc}
+\usepackage{kpfonts}
+\usepackage{microtype}
+\usepackage{parskip}
+\usepackage{setspace}
+
+% Language
+\usepackage[english,main=french]{babel}
+\usepackage{csquotes}
+
+% Graphs and format
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage[a4paper, portrait, left=0.75in, right=0.75in, top=1in, bottom=1in]{geometry}
+\setlength{\columnsep}{0.3in}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{listings}
+\usepackage{float}
+\usepackage[explicit]{titlesec}
+\usepackage{multicol}
+
+\titleformat{\section}
+  {\normalfont\Large\bfseries} % Style de la police
+  {\thesection}                % Numérotation
+  {1em}                        % Espace entre le numéro et le titre
+  {{\color{red}\uline{{\color{black}#1}}}}
+
+% Math
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathrsfs}
+
+% Bib
+\usepackage[backend=biber, style=numeric, sorting=none]{biblatex}
+\addbibresource{bib.bib}
+
+\usepackage[skip=8pt]{caption}
+\usepackage{booktabs}
+\usepackage[normalem]{ulem}
+\usepackage{pdflscape}
+
+% Links
+\usepackage{hyperref}
+\urlstyle{same}
+
+\setlist[itemize,1]{label=\textbullet}
+
+\addto\captionsfrench{%
+  \renewcommand{\tablename}{Tableau}%
+  \renewcommand{\listtablename}{Liste des tableaux}%
+}
+
+\hypersetup{
+    colorlinks,
+    citecolor=blue,
+    filecolor=black,
+    linkcolor=black,
+    urlcolor=blue
+}
+
+\definecolor{blue}{HTML}{021E73}
+\definecolor{blue2}{HTML}{0A2D73}
+\definecolor{yellow}{HTML}{F2B90C}
+\definecolor{white}{HTML}{F2E4DC}
+\definecolor{red}{HTML}{F22727}
+
+\definecolor{CPPLight}{HTML}{686868}
+\definecolor{CPPSteel}{HTML}{888888}
+\definecolor{CPPDark}{HTML}{262626}
+\definecolor{CPPBlue}{HTML}{4172A3}
+\definecolor{CPPGreen}{HTML}{487818}
+\definecolor{CPPBrown}{HTML}{A07040}
+\definecolor{CPPRed}{HTML}{AD4D3A}
+\definecolor{CPPViolet}{HTML}{7040A0}
+\definecolor{CPPGray}{HTML}{B8B8B8}
+
+\lstset{
+    language=C++,
+    basicstyle=\scriptsize\ttfamily,
+    numbers=left,
+    numberstyle=\tiny\color{darkgray},
+    frame=none,
+    backgroundcolor=\color[RGB]{245,245,244},
+    keywordstyle=\color[RGB]{40,40,255},
+    commentstyle=\it\color[RGB]{0,96,96},
+    stringstyle=\rmfamily\slshape\color[RGB]{128,0,0},
+    showstringspaces=false,
+    morekeywords={alignas,decltype,goto,register,true,alignof,defult,if,return,typedef,auto,delete,inline,short,typeid,bool,do,int,signed,typename,break,double,long,sizeof,union,case,dynamic_cast,mutable,static,unsigned,catch,else,namespace,static_assert,using,char,enum,new,static_cast,virtual,class,extern,operator,template,wchar_t,const,false,private,this,while,constexpr,float,protected,thread_local,const_cast,for,public,throw,std},
+    emph={map,set,multimap,multiset,unordered_map,unordered_set,unordered_multiset,unordered_multimap,vector,string,list,deque,array,stack,forward_list,iostream,memory,shared_ptr,unique_ptr,random,bitset,ostream,istream,cout,cin,endl,move,default_random_engine,uniform_int_distribution,iterator,algorithm,functional,bind,numeric},
+    emphstyle=\color{CPPViolet}
+}
+
+\graphicspath{{Figures/}}
+
+\newcommand{\PagePresentation}{
+    \begin{figure}[!ht]
+        \centering
+        \includegraphics[width=10cm]{Polytechnique.png}
+    \end{figure}
+    \begin{center}
+    \vspace{4\baselineskip}
+    {\Large\textbf{INF8175} - IA : méthodes et algorithmes}
+    \\[1cm]
+    {\huge\textbf{Projet - Agent intelligent pour le jeu Hex}}
+    \\[2cm]
+    \begin{figure}[!ht]
+        \centering
+        \includegraphics[width=0.5\linewidth]{machineHex.jpg}
+        \caption{Machine de jeu Hex par Claude et Elizabeth Shannon, 1953. \cite{shannon1953hex}}
+    \end{figure}
+    ~\\[2cm]
+    {Par Mattias Vinet-Larouche (2212749) \\ et Olivier Thabet (2294559) \\
+    11 mars 2026}
+    \end{center}
+    \newpage
+}
+\begin{document}
+\PagePresentation
+\newpage
+
+\begin{multicols}{2}
+
+    \section{Heuristiques}
+    \subsection{Grille Électrique}
+    Le jeu de Hex et un jeu de connexion. Comme Shannon l'a fait avec sa machine de jeu Hex, nous modélisons le plateau de jeu comme un réseau électrique. Pour résoudre ce réseau, nous utilisons l'analyse nodale, qui est une méthode efficace pour déterminer la tension à chaque noeud du réseau. On peut utiliser cette approche car tous les éléments du réseau sont des résistances linéaires.
+
+\end{multicols}
+
+\newpage
+\printbibliography
+
+\end{document}

@@ -1,0 +1,68 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.3 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated by
+% biber as required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+
+\refsection{0}
+  \datalist[entry]{none/global//global/global/global}
+    \entry{shannon1953hex}{online}{}{}
+      \name{author}{2}{}{%
+        {{hash=e930d560748b00dab7e3d19806c848ba}{%
+           family={Shannon},
+           familyi={S\bibinitperiod},
+           given={Claude\bibnamedelima Elwood},
+           giveni={C\bibinitperiod\bibinitdelim E\bibinitperiod}}}%
+        {{hash=3f78db3686ed0a4f98a9abbc0d77f8ae}{%
+           family={Shannon},
+           familyi={S\bibinitperiod},
+           given={Mary\bibnamedelimb Elizabeth\bibnamedelima (Moore)},
+           giveni={M\bibinitperiod\bibinitdelim E\bibinitperiod\bibinitdelim (\bibinitperiod}}}%
+      }
+      \list{organization}{1}{%
+        {MIT Museum}%
+      }
+      \strng{namehash}{785f16a70c99f40b396aceae9473036a}
+      \strng{fullhash}{785f16a70c99f40b396aceae9473036a}
+      \strng{fullhashraw}{785f16a70c99f40b396aceae9473036a}
+      \strng{bibnamehash}{785f16a70c99f40b396aceae9473036a}
+      \strng{authorbibnamehash}{785f16a70c99f40b396aceae9473036a}
+      \strng{authornamehash}{785f16a70c99f40b396aceae9473036a}
+      \strng{authorfullhash}{785f16a70c99f40b396aceae9473036a}
+      \strng{authorfullhashraw}{785f16a70c99f40b396aceae9473036a}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Object ID: 2007.030.010}
+      \field{title}{Hex (Hox)}
+      \field{urlday}{15}
+      \field{urlmonth}{3}
+      \field{urlyear}{2026}
+      \field{year}{1953}
+      \field{dateera}{ce}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://mitmuseum.mit.edu/collections/object/2007.030.010
+      \endverb
+      \verb{url}
+      \verb https://mitmuseum.mit.edu/collections/object/2007.030.010
+      \endverb
+    \endentry
+  \enddatalist
+\endrefsection
+\endinput
+
