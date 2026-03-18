@@ -262,55 +262,65 @@ class MyPlayer(PlayerHex):
 
     def _calculate_amperage(self, board_key: Tuple[str, ...], target_piece: str, geom: dict) -> float:
         direction = "HAUTBAS" if target_piece == "R" else "GAUCHEDROITE"
+
+        # Si le résultat a déjà été rencontré, retourner à partir du cache
         cache_key = (target_piece, direction, board_key)
         cached = self._amperage_cache.get(cache_key)
         if cached is not None:
             self._amperage_cache.move_to_end(cache_key)
             return cached
 
+        # Construction des matrices
         n = geom["n"]
         size = geom["size"]
+        opponent_piece = "B" if target_piece == "R" else "R"
+
+        # Lookup pour la conductance entre deux cellules
+        def edge_conductance(cell_i: str, cell_j: str) -> float:
+            if cell_i == opponent_piece or cell_j == opponent_piece:
+                return 0.0      # bloqué par pièce adverse
+            if cell_i == target_piece and cell_j == target_piece:
+                return 1000.0   # deux pièces à nous, connection forte
+            if cell_i == target_piece or cell_j == target_piece:
+                return 2.0      # one friendly piece, one empty: easy connection
+            return 1.0          # two empty cells: normal resistance
+
+        def source_conductance(cell: str) -> float:
+            if cell == opponent_piece:
+                return 0.0
+            if cell == target_piece:
+                return 1000.0
+            return 1.0  
+
         g_mat = np.zeros((size, size))
         current = np.zeros(size)
-        resistances = np.ones(size)
-
-        for idx, cell in enumerate(board_key):
-            if cell == target_piece:
-                resistances[idx] = 0.001
-            elif cell == ".":
-                resistances[idx] = 1.0
-            else:
-                resistances[idx] = float("inf")
 
         for idx in range(size):
-            r_i = resistances[idx]
-            if r_i == float("inf"):
-                g_mat[idx, idx] = 1.0
+            cell_i = board_key[idx]
+
+            if cell_i == opponent_piece:
+                g_mat[idx, idx] = 1.0  # isolated node
                 continue
 
             diag_sum = 0.0
             for nb in geom["neighbors"][idx]:
-                r_j = resistances[nb]
-                if r_j == float("inf"):
+                cell_j = board_key[nb]
+                c = edge_conductance(cell_i, cell_j)
+                if c == 0.0:
                     continue
-                conductance = 2.0 / (r_i + r_j)
-                g_mat[idx, nb] -= conductance
-                diag_sum += conductance
+                g_mat[idx, nb] -= c
+                diag_sum += c
 
             source_c = 0.0
             sink_c = 0.0
             row = geom["rows"][idx]
             col = geom["cols"][idx]
             if direction == "HAUTBAS":
-                if row == 0:
-                    source_c = 2.0 / r_i
-                if row == n - 1:
-                    sink_c = 2.0 / r_i
+                if row == 0:     source_c = source_conductance(cell_i)
+                if row == n - 1: sink_c   = source_conductance(cell_i)
             else:
-                if col == 0:
-                    source_c = 2.0 / r_i
-                if col == n - 1:
-                    sink_c = 2.0 / r_i
+                if col == 0:     source_c = source_conductance(cell_i)
+                if col == n - 1: sink_c   = source_conductance(cell_i)
 
             g_mat[idx, idx] = diag_sum + source_c + sink_c
             current[idx] = source_c
@@ -322,11 +332,11 @@ class MyPlayer(PlayerHex):
                 row = 0 if direction == "HAUTBAS" else i
                 col = i if direction == "HAUTBAS" else 0
                 idx = row * n + col
-                r_i = resistances[idx]
-                if r_i == float("inf"):
+                cell = board_key[idx]
+                if cell == opponent_piece:
                     continue
-                source_c = 2.0 / r_i
-                total_current += source_c * (1.0 - voltages[idx])
+                sc = source_conductance(cell)
+                total_current += sc * (1.0 - voltages[idx])
             result = float(total_current)
         except np.linalg.LinAlgError:
             result = 0.0
