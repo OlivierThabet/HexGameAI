@@ -316,11 +316,6 @@ INPUT c:/texlive/2024/texmf-dist/fonts/tfm/public/kpfonts/jkpmn8r.tfm
 INPUT c:/texlive/2024/texmf-dist/fonts/tfm/public/kpfonts/jkpmne.tfm
 INPUT c:/texlive/2024/texmf-dist/fonts/tfm/public/kpfonts/jkpmn8t.tfm
 INPUT c:/texlive/2024/texmf-dist/fonts/tfm/public/kpfonts/jkpbn8t.tfm
-INPUT c:/texlive/2024/texmf-dist/fonts/vf/public/kpfonts/jkpbn8t.vf
-INPUT c:/texlive/2024/texmf-dist/fonts/tfm/public/kpfonts/jkpbn8r.tfm
-INPUT c:/texlive/2024/texmf-dist/fonts/tfm/public/kpfonts/jkpbne.tfm
-INPUT c:/texlive/2024/texmf-dist/fonts/enc/dvips/kpfonts/kpfonts-expert.enc
-INPUT c:/texlive/2024/texmf-dist/fonts/tfm/public/kpfonts/jkpmit8t.tfm
 INPUT c:/texlive/2024/texmf-dist/tex/latex/kpfonts/ot1jkp.fd
 INPUT c:/texlive/2024/texmf-dist/tex/latex/kpfonts/ot1jkp.fd
 INPUT c:/texlive/2024/texmf-dist/tex/latex/kpfonts/ot1jkp.fd
@@ -375,6 +370,14 @@ INPUT c:/texlive/2024/texmf-dist/tex/latex/jknapltx/ursfs.fd
 INPUT c:/texlive/2024/texmf-dist/fonts/tfm/public/rsfs/rsfs10.tfm
 INPUT c:/texlive/2024/texmf-dist/fonts/tfm/public/rsfs/rsfs10.tfm
 INPUT c:/texlive/2024/texmf-dist/fonts/tfm/public/rsfs/rsfs5.tfm
+INPUT c:/texlive/2024/texmf-dist/fonts/vf/public/kpfonts/jkpbn8t.vf
+INPUT c:/texlive/2024/texmf-dist/fonts/tfm/public/kpfonts/jkpbn8r.tfm
+INPUT c:/texlive/2024/texmf-dist/fonts/tfm/public/kpfonts/jkpbne.tfm
+INPUT c:/texlive/2024/texmf-dist/fonts/enc/dvips/kpfonts/kpfonts-expert.enc
+INPUT c:/texlive/2024/texmf-dist/fonts/vf/public/kpfonts/jkpmn7t.vf
+INPUT c:/texlive/2024/texmf-dist/fonts/tfm/public/kpfonts/jkpmne.tfm
+INPUT c:/texlive/2024/texmf-dist/fonts/tfm/public/kpfonts/jkpmn8r.tfm
+INPUT c:/texlive/2024/texmf-dist/fonts/tfm/public/kpfonts/jkpmit8t.tfm
 INPUT c:/texlive/2024/texmf-dist/fonts/vf/public/kpfonts/jkpmit8t.vf
 INPUT c:/texlive/2024/texmf-dist/fonts/tfm/public/kpfonts/jkpmit8r.tfm
 INPUT c:/texlive/2024/texmf-dist/fonts/tfm/public/kpfonts/jkpmite.tfm
@@ -384,7 +387,9 @@ INPUT ./RapportHex.out
 INPUT RapportHex.run.xml
 OUTPUT RapportHex.run.xml
 INPUT c:/texlive/2024/texmf-dist/fonts/type1/public/kpfonts/jkpbn8a.pfb
+INPUT c:/texlive/2024/texmf-dist/fonts/type1/public/kpfonts/jkpmi.pfb
 INPUT c:/texlive/2024/texmf-dist/fonts/type1/public/kpfonts/jkpmit8a.pfb
 INPUT c:/texlive/2024/texmf-dist/fonts/type1/public/kpfonts/jkpmn8a.pfb
 INPUT c:/texlive/2024/texmf-dist/fonts/type1/public/kpfonts/jkpmne.pfb
 INPUT c:/texlive/2024/texmf-dist/fonts/type1/public/kpfonts/jkpmsc8a.pfb
+INPUT c:/texlive/2024/texmf-dist/fonts/type1/public/kpfonts/jkpsy.pfb

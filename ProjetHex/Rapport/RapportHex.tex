@@ -123,10 +123,12 @@
 \newpage
 
 \begin{multicols}{2}
+    \raggedright
 
     \section{Heuristiques}
     \subsection{Grille Électrique}
-    Le jeu de Hex et un jeu de connexion. Comme Shannon l'a fait avec sa machine de jeu Hex, nous modélisons le plateau de jeu comme un réseau électrique. Pour résoudre ce réseau, nous utilisons l'analyse nodale, qui est une méthode efficace pour déterminer la tension à chaque noeud du réseau. On peut utiliser cette approche car tous les éléments du réseau sont des résistances linéaires.
+    Le jeu de Hex et un jeu de connexion. Comme Shannon l'a fait avec sa machine de jeu Hex, nous modélisons le plateau de jeu comme un réseau électrique. Pour résoudre ce réseau, nous utilisons l'analyse nodale, qui est une méthode efficace pour déterminer la tension à chaque noeud du réseau. On peut utiliser cette approche car tous les éléments du réseau sont des résistances linéaires. On crée donc la matrice d'admittance du réseau $G$ de taille $n^2 \times n^2$, avec $n$ la taille du plateau. \\
+    Pour chaque connexion entre les cases (adjacentes), on définit la conductance $g_{ij}$ entre les cases $i$ et $j$. Si les cases sont occupées par deux de nos pièces, on attribue une conductance élevée (1000)  pour représenter une connexion forte. À l'inverse, si les cases sont occupées par des pièces adverses, on attribue un conductance faible (0). Essentiellement, la connectivité est nulle. Pour les autres cas, on attribue une conductance intermédiare (1). \\
 
 \end{multicols}
 

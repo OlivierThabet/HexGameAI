@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import math
+import time
 from collections import OrderedDict
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from scipy.sparse.linalg import cg
@@ -22,6 +24,11 @@ BRIDGE_TEMPLATES = (
     (-1, -1, -1, 0, 0, -1),
 )
 _GEOM_CACHE: Dict[int, dict] = {}
+
+# Fraction of remaining time we're willing to spend on one move
+TIME_BUDGET_FRACTION = 0.08
+# UCB1 exploration constant — higher = more exploration
+UCB_C = 1.4
 
 
 def _other(piece: str) -> str:
@@ -114,17 +121,65 @@ def _has_won(board: List[str], piece: str, geom: dict) -> bool:
     return False
 
 
+# ─────────────────────────────────────────────
+#  MCTS Node
+# ─────────────────────────────────────────────
+
+class _Node:
+    """A node in the MCTS tree."""
+
+    __slots__ = (
+        "move",       # move (idx) that led to this node, None for root
+        "to_play",    # piece that just played to reach this node
+        "parent",
+        "children",
+        "untried",    # moves not yet expanded
+        "visits",
+        "value",      # cumulative score from root_piece perspective
+    )
+
+    def __init__(
+        self,
+        move: Optional[int],
+        to_play: str,
+        parent: Optional[_Node],
+        untried: List[int],
+    ) -> None:
+        self.move = move
+        self.to_play = to_play
+        self.parent = parent
+        self.children: List[_Node] = []
+        self.untried = untried
+        self.visits = 0
+        self.value = 0.0
+
+    def ucb(self, parent_visits: int) -> float:
+        if self.visits == 0:
+            return float("inf")
+        return self.value / self.visits + UCB_C * math.sqrt(
+            math.log(parent_visits) / self.visits
+        )
+
+    def best_child(self) -> "_Node":
+        return max(self.children, key=lambda c: c.ucb(self.visits))
+
+    def most_visited_child(self) -> "_Node":
+        return max(self.children, key=lambda c: c.visits)
+
+
+# ─────────────────────────────────────────────
+#  Player
+# ─────────────────────────────────────────────
+
 class MyPlayer(PlayerHex):
-    SEARCH_DEPTH = 2
     WIN_SCORE = 10**7
     MAX_AMPERAGE_CACHE = 50000
-    MAX_EVAL_CACHE = 50000
 
-    def __init__(self, piece_type: str, name: str = "AmperesBotV3") -> None:
+    def __init__(self, piece_type: str, name: str = "AmperesMCTS") -> None:
         super().__init__(piece_type, name)
-        self._amperage_cache: OrderedDict[Tuple[str, str, Tuple[str, ...]], float] = OrderedDict()
-        self._eval_cache: OrderedDict[Tuple[str, Tuple[str, ...]], float] = OrderedDict()
-        self._tt: Dict[Tuple[Tuple[str, ...], str, int, str], float] = {}
+        self._amperage_cache: OrderedDict = OrderedDict()
+
+    # ── Public entry point ──────────────────────────────────────────────
 
     def compute_action(
         self,
@@ -132,13 +187,12 @@ class MyPlayer(PlayerHex):
         remaining_time: float = 15 * 60,
         **kwargs,
     ) -> Action:
-        del remaining_time, kwargs
+        del kwargs
         n = current_state.get_rep().get_dimensions()[0]
         geom = _get_geom(n)
         board, empties = self._extract_board(current_state, n)
         my_piece = self.piece_type
         opp_piece = _other(my_piece)
-        self._tt.clear()
 
         if not empties:
             return self._to_action(0, n)
@@ -149,292 +203,159 @@ class MyPlayer(PlayerHex):
 
         my_wins = self._winning_moves(board, empties, my_piece, geom)
         if my_wins:
-            move = self._ordered_moves(board, my_wins, my_piece, geom)[0]
-            return self._to_action(move, n)
+            return self._to_action(my_wins[0], n)
 
         opp_wins = self._winning_moves(board, empties, opp_piece, geom)
         if opp_wins:
-            move = self._ordered_moves(board, opp_wins, my_piece, geom)[0]
-            return self._to_action(move, n)
+            return self._to_action(opp_wins[0], n)
 
-        alpha = float("-inf")
-        beta = float("inf")
-        best_move = empties[0]
-        best_score = float("-inf")
-
-        for mv in self._ordered_moves(board, empties, my_piece, geom):
-            board[mv] = my_piece
-            if _has_won(board, my_piece, geom):
-                score = self.WIN_SCORE
-            else:
-                rest = [e for e in empties if e != mv]
-                score = self._alpha_beta(board, rest, opp_piece, self.SEARCH_DEPTH - 1, alpha, beta, my_piece, geom)
-            board[mv] = "."
-
-            if score > best_score:
-                best_score = score
-                best_move = mv
-            alpha = max(alpha, best_score)
-
+        budget = remaining_time * TIME_BUDGET_FRACTION
+        best_move = self._mcts(board, empties, my_piece, geom, budget)
         return self._to_action(best_move, n)
 
-    def _alpha_beta(
+    # ── MCTS ────────────────────────────────────────────────────────────
+
+    def _mcts(
         self,
         board: List[str],
         empties: List[int],
-        to_play: str,
-        depth: int,
-        alpha: float,
-        beta: float,
         root_piece: str,
         geom: dict,
-    ) -> float:
-        opp_root = _other(root_piece)
+        budget: float,
+    ) -> int:
+        ordered = self._relevant_ordered_moves(board, empties, root_piece, geom)
+        root = _Node(move=None, to_play=root_piece, parent=None, untried=ordered)
+        deadline = time.time() + budget
+
+        while time.time() < deadline:
+            # Selection
+            node, sim_board, sim_empties = self._select(
+                root, board[:], empties[:], geom
+            )
+
+            # Expansion — if this node has untried moves and game isn't over
+            if node.untried and not _has_won(sim_board, _other(node.to_play), geom):
+                move = node.untried.pop(0)
+                sim_board[move] = node.to_play
+                sim_empties = [e for e in sim_empties if e != move]
+                child_moves = self._relevant_ordered_moves(
+                    sim_board, sim_empties, _other(node.to_play), geom
+                )
+                child = _Node(
+                    move=move,
+                    to_play=_other(node.to_play),
+                    parent=node,
+                    untried=child_moves,
+                )
+                node.children.append(child)
+                node = child
+
+            # Simulation — amperage as leaf evaluation
+            value = self._simulate(sim_board, root_piece, geom)
+
+            # Backpropagation
+            self._backprop(node, value)
+
+        return root.most_visited_child().move
+
+    def _select(
+        self,
+        node: _Node,
+        board: List[str],
+        empties: List[int],
+        geom: dict,
+    ) -> Tuple[_Node, List[str], List[int]]:
+        """Walk down the tree via UCB1 until we reach an expandable node."""
+        while not node.untried and node.children:
+            node = node.best_child()
+            board[node.move] = node.to_play
+            empties = [e for e in empties if e != node.move]
+            if _has_won(board, node.to_play, geom):
+                break
+        return node, board, empties
+
+    def _simulate(self, board: List[str], root_piece: str, geom: dict) -> float:
+        """
+        Leaf evaluation using amperage.
+        Returns a normalized score in (-1, 1) relative to root_piece.
+        """
         if _has_won(board, root_piece, geom):
-            return self.WIN_SCORE + depth
-        if _has_won(board, opp_root, geom):
-            return -self.WIN_SCORE - depth
-        if depth == 0 or not empties:
-            return self._evaluate_board(board, root_piece, geom)
+            return 1.0
+        if _has_won(board, _other(root_piece), geom):
+            return -1.0
 
         board_key = tuple(board)
-        tt_key = (board_key, to_play, depth, root_piece)
-        cached = self._tt.get(tt_key)
-        if cached is not None:
-            return cached
+        my_amp = self._calculate_amperage(board_key, root_piece, geom)
+        opp_amp = self._calculate_amperage(board_key, _other(root_piece), geom)
 
-        maximizing = to_play == root_piece
-        next_piece = _other(to_play)
+        total = my_amp + opp_amp
+        if total == 0:
+            return 0.0
+        return (my_amp - opp_amp) / total  # normalized to (-1, 1)
 
-        if maximizing:
-            best_score = float("-inf")
-            for mv in self._ordered_moves(board, empties, to_play, geom):
-                board[mv] = to_play
-                if _has_won(board, to_play, geom):
-                    score = self.WIN_SCORE + depth
-                else:
-                    rest = [e for e in empties if e != mv]
-                    score = self._alpha_beta(board, rest, next_piece, depth - 1, alpha, beta, root_piece, geom)
-                board[mv] = "."
+    def _backprop(self, node: _Node, value: float) -> None:
+        while node is not None:
+            node.visits += 1
+            node.value += value
+            node = node.parent
 
-                if score > best_score:
-                    best_score = score
-                alpha = max(alpha, best_score)
-                if alpha >= beta:
-                    break
-        else:
-            best_score = float("inf")
-            for mv in self._ordered_moves(board, empties, to_play, geom):
-                board[mv] = to_play
-                if _has_won(board, to_play, geom):
-                    score = -self.WIN_SCORE - depth
-                else:
-                    rest = [e for e in empties if e != mv]
-                    score = self._alpha_beta(board, rest, next_piece, depth - 1, alpha, beta, root_piece, geom)
-                board[mv] = "."
+    # ── Move generation ─────────────────────────────────────────────────
 
-                if score < best_score:
-                    best_score = score
-                beta = min(beta, best_score)
-                if alpha >= beta:
-                    break
-
-        self._tt[tt_key] = best_score
-        return best_score
-
-    def _evaluate_board(self, board: List[str], root_piece: str, geom: dict) -> float:
-        board_key = tuple(board)
-        cache_key = (root_piece, board_key)
-        cached = self._eval_cache.get(cache_key)
-        if cached is not None:
-            self._eval_cache.move_to_end(cache_key)
-            return cached
-
-        opp_piece = _other(root_piece)
-        score = self._calculate_amperage(board_key, root_piece, geom) - self._calculate_amperage(
-            board_key, opp_piece, geom
-        )
-
-        self._eval_cache[cache_key] = score
-        if len(self._eval_cache) > self.MAX_EVAL_CACHE:
-            self._eval_cache.popitem(last=False)
-        return score
-
-    def _calculate_amperage(self, board_key: Tuple[str, ...], target_piece: str, geom: dict, x0: np.ndarray = None) -> float:
-        direction = "HAUTBAS" if target_piece == "R" else "GAUCHEDROITE"
-        cache_key = (target_piece, direction, board_key)
-        cached = self._amperage_cache.get(cache_key)
-        if cached is not None:
-            self._amperage_cache.move_to_end(cache_key)
-            return cached
-
-        n = geom["n"]
-        size = geom["size"]
-        g_mat = np.zeros((size, size))
-        current = np.zeros(size)
-        resistances = np.ones(size)
-
-        for idx, cell in enumerate(board_key):
-            if cell == target_piece:
-                resistances[idx] = 0.001
-            elif cell == ".":
-                resistances[idx] = 1.0
-            else:
-                resistances[idx] = float("inf")
-
-        for idx in range(size):
-            r_i = resistances[idx]
-            if r_i == float("inf"):
-                g_mat[idx, idx] = 1.0
+    def _relevant_ordered_moves(
+        self,
+        board: List[str],
+        empties: List[int],
+        piece: str,
+        geom: dict,
+        radius: int = 2,
+    ) -> List[int]:
+        """Only keep moves within `radius` of an existing piece, then order them."""
+        relevant = set()
+        for idx, cell in enumerate(board):
+            if cell == ".":
                 continue
+            r, c = geom["rows"][idx], geom["cols"][idx]
+            for e in empties:
+                er, ec = geom["rows"][e], geom["cols"][e]
+                if abs(er - r) + abs(ec - c) <= radius:
+                    relevant.add(e)
+        candidates = list(relevant) if relevant else empties
+        return self._ordered_moves(board, candidates, piece, geom)
 
-            diag_sum = 0.0
-            for nb in geom["neighbors"][idx]:
-                r_j = resistances[nb]
-                if r_j == float("inf"):
-                    continue
-                conductance = 2.0 / (r_i + r_j)
-                g_mat[idx, nb] -= conductance
-                diag_sum += conductance
-
-            source_c = 0.0
-            sink_c = 0.0
-            row = geom["rows"][idx]
-            col = geom["cols"][idx]
-            if direction == "HAUTBAS":
-                if row == 0:
-                    source_c = 2.0 / r_i
-                if row == n - 1:
-                    sink_c = 2.0 / r_i
-            else:
-                if col == 0:
-                    source_c = 2.0 / r_i
-                if col == n - 1:
-                    sink_c = 2.0 / r_i
-
-            g_mat[idx, idx] = diag_sum + source_c + sink_c
-            current[idx] = source_c
-
-        try:
-            voltages, _ = cg(g_mat, current, rtol=1e-5)
-            total_current = 0.0
-            for i in range(n):
-                row = 0 if direction == "HAUTBAS" else i
-                col = i if direction == "HAUTBAS" else 0
-                idx = row * n + col
-                r_i = resistances[idx]
-                if r_i == float("inf"):
-                    continue
-                source_c = 2.0 / r_i
-                total_current += source_c * (1.0 - voltages[idx])
-            result = float(total_current)
-        except np.linalg.LinAlgError:
-            result = 0.0
-
-        self._amperage_cache[cache_key] = result
-        if len(self._amperage_cache) > self.MAX_AMPERAGE_CACHE:
-            self._amperage_cache.popitem(last=False)
-        return result
-
-    def _ordered_moves(self, board: List[str], moves: List[int], piece: str, geom: dict) -> List[int]:
+    def _ordered_moves(
+        self, board: List[str], moves: List[int], piece: str, geom: dict
+    ) -> List[int]:
         opp = _other(piece)
-        rescue_moves = self._bridge_responses(board, piece, geom)
-        cut_moves = self._bridge_cut_targets(board, opp, geom)
         scored = []
-
         for idx in moves:
-            own_n = 0
-            opp_n = 0
-            for nb in geom["neighbors"][idx]:
-                cell = board[nb]
-                if cell == piece:
-                    own_n += 1
-                elif cell == opp:
-                    opp_n += 1
-
-            row = geom["rows"][idx]
-            col = geom["cols"][idx]
+            own_n = sum(1 for nb in geom["neighbors"][idx] if board[nb] == piece)
+            opp_n = sum(1 for nb in geom["neighbors"][idx] if board[nb] == opp)
+            row, col = geom["rows"][idx], geom["cols"][idx]
             center = geom["center"]
             center_bias = -(abs(row - center) + abs(col - center))
             progress = -abs(col - center) if piece == "R" else -abs(row - center)
-
-            bridge_bonus = self._bridge_build_bonus(board, idx, piece, geom)
-            if idx in rescue_moves:
-                bridge_bonus += 18.0
-            if idx in cut_moves:
-                bridge_bonus += 5.0
-
-            score = 3.2 * own_n + 2.8 * opp_n + 0.25 * center_bias + 0.30 * progress + bridge_bonus
+            score = 3.2 * own_n + 2.8 * opp_n + 0.25 * center_bias + 0.30 * progress
             scored.append((score, idx))
-
         scored.sort(reverse=True)
         return [idx for _, idx in scored]
 
-    def _bridge_responses(self, board: List[str], piece: str, geom: dict) -> Set[int]:
-        opp = _other(piece)
-        responses: Set[int] = set()
-
-        for idx, cell in enumerate(board):
-            if cell != piece:
-                continue
-            for partner, c1, c2 in geom["bridge_links"][idx]:
-                if board[partner] != piece:
-                    continue
-                if board[c1] == opp and board[c2] == ".":
-                    responses.add(c2)
-                elif board[c2] == opp and board[c1] == ".":
-                    responses.add(c1)
-
-        return responses
-
-    def _bridge_cut_targets(self, board: List[str], opp: str, geom: dict) -> Set[int]:
-        targets: Set[int] = set()
-
-        for idx, cell in enumerate(board):
-            if cell != opp:
-                continue
-            for partner, c1, c2 in geom["bridge_links"][idx]:
-                if board[partner] != opp:
-                    continue
-                if board[c1] == "." and board[c2] == ".":
-                    targets.add(c1)
-                    targets.add(c2)
-
-        return targets
-
-    def _bridge_build_bonus(self, board: List[str], idx: int, piece: str, geom: dict) -> float:
-        opp = _other(piece)
-        bonus = 0.0
-
-        for partner, c1, c2 in geom["bridge_links"][idx]:
-            if board[partner] != piece:
-                continue
-            v1 = board[c1]
-            v2 = board[c2]
-            if v1 == "." and v2 == ".":
-                bonus += 3.0
-            elif (v1 == piece and v2 == ".") or (v2 == piece and v1 == "."):
-                bonus += 4.5
-            elif (v1 == opp and v2 == ".") or (v2 == opp and v1 == "."):
-                bonus += 0.5
-
-        return bonus
-
-    def _winning_moves(self, board: List[str], empties: List[int], piece: str, geom: dict) -> List[int]:
+    def _winning_moves(
+        self, board: List[str], empties: List[int], piece: str, geom: dict
+    ) -> List[int]:
         wins = []
         for idx in empties:
             board[idx] = piece
-            won = _has_won(board, piece, geom)
-            board[idx] = "."
-            if won:
+            if _has_won(board, piece, geom):
                 wins.append(idx)
+            board[idx] = "."
         return wins
 
-    def _opening_move(self, board: List[str], empties: List[int], piece: str, geom: dict) -> int | None:
+    def _opening_move(
+        self, board: List[str], empties: List[int], piece: str, geom: dict
+    ) -> Optional[int]:
         stones_played = len(board) - len(empties)
         if stones_played >= 4:
             return None
-
         n = geom["n"]
         center = n // 2
         candidates = [
@@ -449,7 +370,108 @@ class MyPlayer(PlayerHex):
             return None
         return self._ordered_moves(board, available, piece, geom)[0]
 
-    def _extract_board(self, state: GameStateHex, n: int) -> Tuple[List[str], List[int]]:
+    # ── Amperage ─────────────────────────────────────────────────────────
+
+    def _calculate_amperage(
+        self, board_key: Tuple[str, ...], target_piece: str, geom: dict
+    ) -> float:
+        direction = "HAUTBAS" if target_piece == "R" else "GAUCHEDROITE"
+        cache_key = (target_piece, direction, board_key)
+        cached = self._amperage_cache.get(cache_key)
+        if cached is not None:
+            self._amperage_cache.move_to_end(cache_key)
+            return cached
+
+        n = geom["n"]
+        size = geom["size"]
+        opponent_piece = _other(target_piece)
+
+        def edge_conductance(cell_i: str, cell_j: str) -> float:
+            if cell_i == opponent_piece or cell_j == opponent_piece:
+                return 0.0
+            if cell_i == target_piece and cell_j == target_piece:
+                return 1000.0
+            if cell_i == target_piece or cell_j == target_piece:
+                return 2.0
+            return 1.0
+
+        def source_conductance(cell: str) -> float:
+            if cell == opponent_piece:
+                return 0.0
+            if cell == target_piece:
+                return 1000.0
+            return 1.0
+
+        g_mat = np.zeros((size, size))
+        current = np.zeros(size)
+
+        for idx in range(size):
+            cell_i = board_key[idx]
+            if cell_i == opponent_piece:
+                g_mat[idx, idx] = 1.0
+                continue
+
+            diag_sum = 0.0
+
+            for nb in geom["neighbors"][idx]:
+                cell_j = board_key[nb]
+                c = edge_conductance(cell_i, cell_j)
+                if c == 0.0:
+                    continue
+                g_mat[idx, nb] -= c
+                diag_sum += c
+
+            for partner, c1, c2 in geom["bridge_links"][idx]:
+                if (
+                    cell_i == target_piece
+                    and board_key[partner] == target_piece
+                    and board_key[c1] == "."
+                    and board_key[c2] == "."
+                ):
+                    c = 500.0
+                    g_mat[idx, partner] -= c
+                    diag_sum += c
+
+            source_c = 0.0
+            sink_c = 0.0
+            row = geom["rows"][idx]
+            col = geom["cols"][idx]
+            if direction == "HAUTBAS":
+                if row == 0:     source_c = source_conductance(cell_i)
+                if row == n - 1: sink_c   = source_conductance(cell_i)
+            else:
+                if col == 0:     source_c = source_conductance(cell_i)
+                if col == n - 1: sink_c   = source_conductance(cell_i)
+
+            g_mat[idx, idx] = diag_sum + source_c + sink_c
+            current[idx] = source_c
+
+        try:
+            voltages, _ = cg(g_mat, current, rtol=1e-5)
+            total_current = 0.0
+            for i in range(n):
+                row = 0 if direction == "HAUTBAS" else i
+                col = i if direction == "HAUTBAS" else 0
+                idx = row * n + col
+                cell = board_key[idx]
+                if cell == opponent_piece:
+                    continue
+                sc = source_conductance(cell)
+                total_current += sc * (1.0 - voltages[idx])
+            result = float(total_current)
+        except np.linalg.LinAlgError:
+            result = 0.0
+
+        self._amperage_cache[cache_key] = result
+        if len(self._amperage_cache) > self.MAX_AMPERAGE_CACHE:
+            self._amperage_cache.popitem(last=False)
+        return result
+
+    # ── Helpers ──────────────────────────────────────────────────────────
+
+    def _extract_board(
+        self, state: GameStateHex, n: int
+    ) -> Tuple[List[str], List[int]]:
         board = ["."] * (n * n)
         for (r, c), piece in state.get_rep().get_env().items():
             board[r * n + c] = piece.get_type()
@@ -457,4 +479,6 @@ class MyPlayer(PlayerHex):
         return board, empties
 
     def _to_action(self, idx: int, n: int) -> StatelessAction:
-        return StatelessAction({"piece": self.piece_type, "position": (idx // n, idx % n)})
+        return StatelessAction(
+            {"piece": self.piece_type, "position": (idx // n, idx % n)}
+        )
