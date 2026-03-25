@@ -26,10 +26,14 @@ class MyPlayer(PlayerHex):
         return current_state.convert_stateful_action_to_stateless_action(action)
 
     def minimax(self, state: GameStateHex, depth: int, alpha: float, beta: float, maximizingPlayer: bool):
-        if state.is_done() or depth == 0:
+        if state.is_done():
+            if state.scores.get(self.get_id(), 0.0) == 1.0:
+                return float('inf'), None
+            else:
+                return float('-inf'), None
+                
+        if depth == 0:
             return self.evaluate_state(state), None
-            
-        best_action = None
 
         if maximizingPlayer:
             max_eval = float('-inf')
@@ -121,7 +125,7 @@ class MyPlayer(PlayerHex):
                 I[node] = C_source # 1V Source pushes current
 
         try:
-            V, exit_code = cg(G, I, rtol=1e-5)
+            V, exit_code = cg(G, I, rtol=1e-5, maxiter=50)
             
             # THE FIX: Calculate the Total Amperage pulled from the 1V Source rail
             total_current = 0.0
