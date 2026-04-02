@@ -76,6 +76,10 @@ class RegressionModel(object):
     def __init__(self) -> None:
         # Initialize your model parameters here
         "*** TODO: COMPLETE HERE FOR QUESTION 2 ***"
+        self.W1 = nn.Parameter(1, 100)
+        self.b1 = nn.Parameter(1, 100)
+        self.W2 = nn.Parameter(100, 1)
+        self.b2 = nn.Parameter(1, 1)
 
     def run(self, x: nn.Constant) -> nn.Node:
         """
@@ -87,6 +91,11 @@ class RegressionModel(object):
             A node with shape (batch_size x 1) containing predicted y-values
         """
         "*** TODO: COMPLETE HERE FOR QUESTION 2 ***"
+        layer1 = nn.Linear(x, self.W1)
+        layer1_bias = nn.AddBias(layer1, self.b1)
+        hidden = nn.ReLU(layer1_bias)
+        output = nn.Linear(hidden, self.W2)
+        return nn.AddBias(output, self.b2)
 
     def get_loss(self, x: nn.Constant, y: nn.Constant) -> nn.Node:
         """
@@ -99,12 +108,35 @@ class RegressionModel(object):
         Returns: a loss node
         """
         "*** TODO: COMPLETE HERE FOR QUESTION 2 ***"
+        return nn.SquareLoss(self.run(x), y)
 
     def train(self, dataset: RegressionDataset) -> None:
         """
         Trains the model.
         """
         "*** TODO: COMPLETE HERE FOR QUESTION 2 ***"
+        batch_size = 20
+        learning_rate = 0.05
+
+        while True:
+            for x, y in dataset.iterate_once(batch_size):
+                loss = self.get_loss(x, y)
+
+                grad_W1, grad_b1, grad_W2, grad_b2 = nn.gradients(
+                    loss, [self.W1, self.b1, self.W2, self.b2]
+                )
+
+                self.W1.update(grad_W1, -learning_rate)
+                self.b1.update(grad_b1, -learning_rate)
+                self.W2.update(grad_W2, -learning_rate)
+                self.b2.update(grad_b2, -learning_rate)
+
+            tot_loss = nn.as_scalar(
+                self.get_loss(nn.Constant(dataset.x), nn.Constant(dataset.y))
+            )
+
+            if tot_loss <= 0.02:
+                break
 
 
 class DigitClassificationModel(object):
