@@ -1,3 +1,4 @@
+#2294559 et 2212749
 import nn
 from backend import PerceptronDataset, RegressionDataset, DigitClassificationDataset
 
@@ -91,11 +92,8 @@ class RegressionModel(object):
             A node with shape (batch_size x 1) containing predicted y-values
         """
         "*** TODO: COMPLETE HERE FOR QUESTION 2 ***"
-        layer1 = nn.Linear(x, self.W1)
-        layer1_bias = nn.AddBias(layer1, self.b1)
-        hidden = nn.ReLU(layer1_bias)
-        output = nn.Linear(hidden, self.W2)
-        return nn.AddBias(output, self.b2)
+        return nn.AddBias(nn.Linear(nn.ReLU(nn.AddBias(nn.Linear(x, self.W1), self.b1)), self.W2), self.b2)
+
 
     def get_loss(self, x: nn.Constant, y: nn.Constant) -> nn.Node:
         """
@@ -157,6 +155,12 @@ class DigitClassificationModel(object):
     def __init__(self) -> None:
         # Initialize your model parameters here
         "*** TODO: COMPLETE HERE FOR QUESTION 3 ***"
+        self.W1 = nn.Parameter(784, 256)
+        self.b1 = nn.Parameter(1, 256)
+        self.W2 = nn.Parameter(256, 128)
+        self.b2 = nn.Parameter(1, 128)
+        self.W3 = nn.Parameter(128, 10)
+        self.b3 = nn.Parameter(1, 10)
 
     def run(self, x: nn.Constant) -> nn.Node:
         """
@@ -173,6 +177,7 @@ class DigitClassificationModel(object):
                 (also called logits)
         """
         "*** TODO: COMPLETE HERE FOR QUESTION 3 ***"
+        return nn.AddBias(nn.Linear(nn.ReLU(nn.AddBias(nn.Linear(nn.ReLU(nn.AddBias(nn.Linear(x, self.W1), self.b1)), self.W2), self.b2)), self.W3), self.b3)
 
     def get_loss(self, x: nn.Constant, y: nn.Constant) -> nn.Node:
         """
@@ -188,9 +193,37 @@ class DigitClassificationModel(object):
         Returns: a loss node
         """
         "*** TODO: COMPLETE HERE FOR QUESTION 3 ***"
+        return nn.SoftmaxLoss(self.run(x), y)
+
+        
 
     def train(self, dataset: DigitClassificationDataset) -> None:
         """
         Trains the model.
         """
         "*** TODO: COMPLETE HERE FOR QUESTION 3 ***"
+        batch_size = 300
+        learning_rate = 0.1
+        while True:
+            for x, y in dataset.iterate_once(batch_size):
+                loss = self.get_loss(x, y)
+
+                grad_W1, grad_b1, grad_W2, grad_b2, grad_W3, grad_b3 = nn.gradients(
+                    loss, [self.W1, self.b1, self.W2, self.b2, self.W3, self.b3]
+                )
+
+                self.W1.update(grad_W1, -learning_rate)
+                self.b1.update(grad_b1, -learning_rate)
+                self.W2.update(grad_W2, -learning_rate)
+                self.b2.update(grad_b2, -learning_rate)
+                self.W3.update(grad_W3, -learning_rate)
+                self.b3.update(grad_b3, -learning_rate)
+
+            val_acc = dataset.get_validation_accuracy()
+            if val_acc >= 0.965:
+                learning_rate = 0.05
+            if val_acc >= 0.971:
+                break
+                
+                
+                
