@@ -92,7 +92,8 @@ class RegressionModel(object):
             A node with shape (batch_size x 1) containing predicted y-values
         """
         "*** TODO: COMPLETE HERE FOR QUESTION 2 ***"
-        return nn.AddBias(nn.Linear(nn.ReLU(nn.AddBias(nn.Linear(x, self.W1), self.b1)), self.W2), self.b2)
+        layer1 = nn.ReLU(nn.AddBias(nn.Linear(x, self.W1), self.b1))
+        return nn.AddBias(nn.Linear(layer1, self.W2), self.b2)
 
 
     def get_loss(self, x: nn.Constant, y: nn.Constant) -> nn.Node:
@@ -177,7 +178,9 @@ class DigitClassificationModel(object):
                 (also called logits)
         """
         "*** TODO: COMPLETE HERE FOR QUESTION 3 ***"
-        return nn.AddBias(nn.Linear(nn.ReLU(nn.AddBias(nn.Linear(nn.ReLU(nn.AddBias(nn.Linear(x, self.W1), self.b1)), self.W2), self.b2)), self.W3), self.b3)
+        layer1 = nn.ReLU(nn.AddBias(nn.Linear(x, self.W1), self.b1))
+        layer2 = nn.ReLU(nn.AddBias(nn.Linear(layer1, self.W2), self.b2))
+        return nn.AddBias(nn.Linear(layer2, self.W3), self.b3)
 
     def get_loss(self, x: nn.Constant, y: nn.Constant) -> nn.Node:
         """
@@ -222,7 +225,7 @@ class DigitClassificationModel(object):
             val_acc = dataset.get_validation_accuracy()
             if val_acc >= 0.965:
                 learning_rate = 0.05
-            if val_acc >= 0.971:
+            if val_acc >= 0.975:
                 break
                 
                 
