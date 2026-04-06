@@ -328,12 +328,27 @@ class MyPlayer(PlayerHex):
             return self._to_action(0, n)
 
         # --- Opening: center ---
-        my_stones = sum(1 for cell in board if cell == my_piece)
-        if my_stones == 0:
-            center = n // 2
-            center_idx = center * n + center
-            if board[center_idx] == ".":
-                return self._to_action(center_idx, n)
+        my_stones = [idx for idx, cell in enumerate(board) if cell == my_piece]
+        if len(my_stones) < 2:
+            center_r, center_c = n // 2, n // 2
+            # A list of central offsets that are strong and spaced out (Knight's moves)
+            preferred_offsets = [
+                (0, 0),         # Exact center
+                (-1, 2),        # Up-right knight move
+                (1, -2),        # Down-left knight move
+                (-2, 1),        # Up-left knight move
+                (2, -1),        # Down-right knight move
+            ]
+            
+            for dr, dc in preferred_offsets:
+                r, c = center_r + dr, center_c + dc
+                if 0 <= r < n and 0 <= c < n:
+                    idx = r * n + c
+                    if board[idx] == ".":
+                        # Check if it touches any of our existing stones
+                        is_touching = any(my_idx in geom["neighbors"][idx] for my_idx in my_stones)
+                        if not is_touching:
+                            return self._to_action(idx, n)
 
         # --- Immediate wins ---
         my_wins = self._winning_moves(board, empties, my_piece, geom)
@@ -344,11 +359,17 @@ class MyPlayer(PlayerHex):
             return self._to_action(self._ordered_moves(board, opp_wins, my_piece, geom)[0], n)
 
         # --- Bridge defense (only forced move besides wins) ---
-        rescue_moves = self._bridge_responses(board, my_piece, geom)
-        if rescue_moves:
-            rescue_list = [m for m in rescue_moves if m in empties]
-            if rescue_list:
-                return self._to_action(self._pick_best(board, rescue_list, my_piece, geom), n)
+        bridge_rescues = self._bridge_responses(board, my_piece, geom)
+        edge_rescues = self._edge_template_responses(board, my_piece, geom)
+        
+        all_forced = bridge_rescues.union(edge_rescues)
+        
+        if all_forced:
+            forced_list = [m for m in all_forced if m in empties]
+            if forced_list:
+                # If there are multiple forced moves (e.g., two bridges attacked at once, 
+                # or an edge template offering two key choices), _pick_best resolves it.
+                return self._to_action(self._pick_best(board, forced_list, my_piece, geom), n)
 
         # --- Algorithm choice: greedy search decides everything else ---
         total_cells = geom["size"]
@@ -700,7 +721,63 @@ class MyPlayer(PlayerHex):
     # -----------------------------------------------------------------------
     # Post-search override: block critical opponent templates
     # -----------------------------------------------------------------------
+    def _edge_template_responses(self, board: List[str], piece: str, geom: dict) -> Set[int]:
+        opp = _other(piece)
+        responses: Set[int] = set()
+        n = geom["n"]
 
+        # 1. Defend Template II
+        for stone, c1, c2 in _get_template_II_instances(n, piece):
+            if board[stone] != piece:
+                continue
+            if board[c1] == opp and board[c2] == ".":
+                responses.add(c2)
+            elif board[c2] == opp and board[c1] == ".":
+                responses.add(c1)
+
+        # 2. Defend Template III (Ziggurat)
+        for stone, carrier, k0, k1 in _get_template_III_instances(n, piece):
+            if board[stone] != piece:
+                continue
+            c0, c1, c2 = carrier[2], carrier[3], carrier[4]
+            
+            # A key is only "alive" if its two required edge cells are empty.
+            k0_alive = board[c0] == "." and board[c1] == "."
+            k1_alive = board[c1] == "." and board[c2] == "."
+            
+            k0_threatened = (board[k1] == opp) or (board[c0] == opp) or (board[c1] == opp)
+            k1_threatened = (board[k0] == opp) or (board[c2] == opp) or (board[c1] == opp)
+            
+            # Only force the response if the key is actually alive to avoid marching into dead ends.
+            if k0_threatened and board[k0] == "." and k0_alive:
+                responses.add(k0)
+            if k1_threatened and board[k1] == "." and k1_alive:
+                responses.add(k1)
+
+        # 3. Defend Template IV
+        for stone, carrier, k0, k1 in _get_template_IV_instances(n, piece):
+            if board[stone] != piece:
+                continue
+            r1_0, r1_1, r1_2 = carrier[2], carrier[3], carrier[4]
+            r0_0, r0_1, r0_2, r0_3 = carrier[5], carrier[6], carrier[7], carrier[8]
+            
+            # A Template IV key is only alive if its underlying Template III carrier is completely empty.
+            k0_alive = (board[r1_0] == "." and board[r1_1] == "." and 
+                        board[r0_0] == "." and board[r0_1] == "." and board[r0_2] == ".")
+            k1_alive = (board[r1_1] == "." and board[r1_2] == "." and 
+                        board[r0_1] == "." and board[r0_2] == "." and board[r0_3] == ".")
+            
+            # If the opponent attacks one side's carrier, the other key becomes threatened.
+            k0_threatened = (board[k1] == opp) or (not k1_alive)
+            k1_threatened = (board[k0] == opp) or (not k0_alive)
+            
+            if k0_threatened and board[k0] == "." and k0_alive:
+                responses.add(k0)
+            if k1_threatened and board[k1] == "." and k1_alive:
+                responses.add(k1)
+
+        return responses
+    
     def _critical_template_override(self, board, chosen_move, empties,
                                      my_piece, opp_piece, geom):
         n = geom["n"]
