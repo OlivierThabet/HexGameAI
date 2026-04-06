@@ -473,7 +473,7 @@ class MyPlayer(PlayerHex):
                         # --- CONNEXION COMPLÈTE ---
                         # Une valeur extrême agit comme un fil parfait (court-circuit)
                         # sans faire planter les mathématiques de la matrice.
-                        bridge_c = 10000.0 
+                        bridge_c = 1000.0
 
                         row_idx.extend([idx, partner])
                         col_idx.extend([partner, idx])
