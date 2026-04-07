@@ -205,7 +205,7 @@ class DigitClassificationModel(object):
         Trains the model.
         """
         "*** TODO: COMPLETE HERE FOR QUESTION 3 ***"
-        batch_size = 300
+        batch_size = 600
         learning_rate = 0.1
         while True:
             for x, y in dataset.iterate_once(batch_size):
@@ -223,9 +223,8 @@ class DigitClassificationModel(object):
                 self.b3.update(grad_b3, -learning_rate)
 
             val_acc = dataset.get_validation_accuracy()
-            if val_acc >= 0.965:
-                learning_rate = 0.05
-            if val_acc >= 0.975:
+
+            if val_acc >= 0.973:
                 break
                 
                 
