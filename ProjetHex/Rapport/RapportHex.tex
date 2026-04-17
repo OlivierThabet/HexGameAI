@@ -18,18 +18,13 @@
 \setlength{\columnsep}{0.3in}
 \usepackage{xcolor}
 \usepackage{listings}
-\usepackage{listings}
 \usepackage{float}
 \usepackage[explicit]{titlesec}
 \usepackage{multicol}
-
-\titleformat{\section}
-  {\normalfont\Large\bfseries} % Style de la police
-  {\thesection}                % Numérotation
-  {1em}                        % Espace entre le numéro et le titre
-  {{\color{red}\uline{{\color{black}#1}}}}
-
-% Math
+\usepackage{booktabs}
+\usepackage[normalem]{ulem}
+\usepackage{pdflscape}
+\usepackage[skip=8pt]{caption}
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{mathrsfs}
@@ -38,14 +33,15 @@
 \usepackage[backend=biber, style=numeric, sorting=none]{biblatex}
 \addbibresource{bib.bib}
 
-\usepackage[skip=8pt]{caption}
-\usepackage{booktabs}
-\usepackage[normalem]{ulem}
-\usepackage{pdflscape}
-
 % Links
 \usepackage{hyperref}
 \urlstyle{same}
+
+\titleformat{\section}
+  {\normalfont\Large\bfseries}
+  {\thesection}
+  {1em}
+  {{\color{red}\uline{{\color{black}#1}}}}
 
 \setlist[itemize,1]{label=\textbullet}
 
@@ -67,32 +63,6 @@
 \definecolor{yellow}{HTML}{F2B90C}
 \definecolor{white}{HTML}{F2E4DC}
 \definecolor{red}{HTML}{F22727}
-
-\definecolor{CPPLight}{HTML}{686868}
-\definecolor{CPPSteel}{HTML}{888888}
-\definecolor{CPPDark}{HTML}{262626}
-\definecolor{CPPBlue}{HTML}{4172A3}
-\definecolor{CPPGreen}{HTML}{487818}
-\definecolor{CPPBrown}{HTML}{A07040}
-\definecolor{CPPRed}{HTML}{AD4D3A}
-\definecolor{CPPViolet}{HTML}{7040A0}
-\definecolor{CPPGray}{HTML}{B8B8B8}
-
-\lstset{
-    language=C++,
-    basicstyle=\scriptsize\ttfamily,
-    numbers=left,
-    numberstyle=\tiny\color{darkgray},
-    frame=none,
-    backgroundcolor=\color[RGB]{245,245,244},
-    keywordstyle=\color[RGB]{40,40,255},
-    commentstyle=\it\color[RGB]{0,96,96},
-    stringstyle=\rmfamily\slshape\color[RGB]{128,0,0},
-    showstringspaces=false,
-    morekeywords={alignas,decltype,goto,register,true,alignof,defult,if,return,typedef,auto,delete,inline,short,typeid,bool,do,int,signed,typename,break,double,long,sizeof,union,case,dynamic_cast,mutable,static,unsigned,catch,else,namespace,static_assert,using,char,enum,new,static_cast,virtual,class,extern,operator,template,wchar_t,const,false,private,this,while,constexpr,float,protected,thread_local,const_cast,for,public,throw,std},
-    emph={map,set,multimap,multiset,unordered_map,unordered_set,unordered_multiset,unordered_multimap,vector,string,list,deque,array,stack,forward_list,iostream,memory,shared_ptr,unique_ptr,random,bitset,ostream,istream,cout,cin,endl,move,default_random_engine,uniform_int_distribution,iterator,algorithm,functional,bind,numeric},
-    emphstyle=\color{CPPViolet}
-}
 
 \graphicspath{{Figures/}}
 
@@ -118,17 +88,108 @@
     \end{center}
     \newpage
 }
+
 \begin{document}
 \PagePresentation
 \newpage
 
-\begin{multicols}{2}
-    \raggedright
+\tableofcontents
+\newpage
 
-    \section{Heuristiques}
-    \subsection{Grille Électrique}
-    Le jeu de Hex et un jeu de connexion. Comme Shannon l'a fait avec sa machine de jeu Hex, nous modélisons le plateau de jeu comme un réseau électrique. Pour résoudre ce réseau, nous utilisons l'analyse nodale, qui est une méthode efficace pour déterminer la tension à chaque noeud du réseau. On peut utiliser cette approche car tous les éléments du réseau sont des résistances linéaires. On crée donc la matrice d'admittance du réseau $G$ de taille $n^2 \times n^2$, avec $n$ la taille du plateau. \\
-    Pour chaque connexion entre les cases (adjacentes), on définit la conductance $g_{ij}$ entre les cases $i$ et $j$. Si les cases sont occupées par deux de nos pièces, on attribue une conductance élevée (1000)  pour représenter une connexion forte. À l'inverse, si les cases sont occupées par des pièces adverses, on attribue un conductance faible (0). Essentiellement, la connectivité est nulle. Pour les autres cas, on attribue une conductance intermédiare (1). \\
+\begin{multicols}{2}
+\raggedright
+
+% ─────────────────────────────────────────────
+\section{Introduction}
+% ─────────────────────────────────────────────
+
+Ce rapport décrit le développement d'un agent intelligent pour le jeu de Hex sur un plateau $14 \times 14$, sans règle de l'échange (\textit{swap}). Le jeu de Hex est un jeu de plateau déterministe, à deux joueurs, à tour par tour, à somme nulle et à information parfaite. Le joueur Rouge (R) cherche à relier le bord supérieur au bord inférieur, tandis que le joueur Bleu (B) cherche à relier le bord gauche au bord droit. Une propriété fondamentale de Hex est qu'il ne peut pas y avoir de match nul : un gagnant existe toujours.
+
+Notre démarche de développement a été incrémentale~: nous avons commencé par un agent MiniMax simple utilisant le modèle électrique de Shannon comme heuristique, avant d'ajouter progressivement des optimisations algorithmiques (élagage alpha-bêta, cache, matrices creuses), des connaissances stratégiques (ponts virtuels, gabarits de bord), et enfin un contrôle adaptatif du temps (approfondissement itératif, stratégie hybride).
+
+% ─────────────────────────────────────────────
+\section{Heuristique}
+% ─────────────────────────────────────────────
+
+\subsection{Principe}
+
+Le jeu de Hex est un jeu de connexion. Comme Shannon l'a fait avec sa machine de jeu Hex \cite{shannon1953hex}, nous modélisons le plateau de jeu comme un réseau électrique. Pour résoudre ce réseau, nous utilisons l'analyse nodale, qui est une méthode efficace pour déterminer la tension à chaque noeud du réseau. On peut utiliser cette approche car tous les éléments du réseau sont des résistances linéaires. On crée donc la matrice d'admittance du réseau $G$ de taille $n^2 \times n^2$, avec $n$ la taille du plateau.
+
+Pour chaque connexion entre les cases (adjacentes), on définit la conductance $g_{ij}$ entre les cases $i$ et $j$. Si les cases sont occupées par deux de nos pièces, on attribue une conductance élevée (1000) pour représenter une connexion forte. À l'inverse, si les cases sont occupées par des pièces adverses, on attribue une conductance faible (0). Essentiellement, la connectivité est nulle. Pour les autres cas, on attribue une conductance intermédiaire (1).
+
+% ─────────────────────────────────────────────
+\section{Stratégies exactes}
+% ─────────────────────────────────────────────
+
+\subsection{Ponts virtuels}
+
+Un pont virtuel est une formation où deux pierres alliées sont reliées par deux chemins intermédiaires distincts. Cette connexion est \textbf{virtuellement garantie}~: si l'adversaire joue un intermédiaire, on joue l'autre. Il ne s'agit pas d'une heuristique mais d'une vérité mathématique sur le jeu de Hex.
+
+Dans notre modèle électrique, les ponts virtuels alliés sont modélisés par une connexion de forte conductance entre les deux pierres alliées. La conductance dépend de l'état des intermédiaires :
+\begin{itemize}
+    \item Deux intermédiaires vides : conductance $= 400$
+    \item Un intermédiaire déjà allié : conductance $= 800$
+    \item Cas partiel : conductance $= 100$
+\end{itemize}
+
+\subsection{Gabarits de bord}
+
+Les gabarits de bord sont des configurations prouvées qui garantissent qu'une pierre proche d'un bord peut s'y connecter, indépendamment du jeu adverse. Nous en modélisons deux types~:
+\begin{itemize}
+    \item \textbf{Distance 2} (rangée $r=1$ ou $r=n-2$) : bonus de conductance de 500 vers le bord
+    \item \textbf{Distance 3} (rangée $r=2$ ou $r=n-3$) : bonus de conductance de 200 si le couloir intermédiaire est libre
+\end{itemize}
+
+\subsection{Filtrage des ponts virtuels adverses}
+
+Lorsque l'adversaire possède un pont virtuel intact, jouer dans ses intermédiaires est généralement inefficace~: il répondra en jouant l'autre. Notre agent filtre donc ces cases et n'y joue que si aucune autre option n'est disponible.
+
+\subsection{Ouverture au centre}
+
+En tout début de partie (moins de 2 pierres posées), l'agent contourne complètement le calcul heuristique et joue directement une case centrale parmi une liste de cinq positions prioritaires~: le centre exact du plateau, puis quatre décalages en mouvement de cavalier autour de celui-ci. Cette alternance à l'heuristique permet d'économiser un appel coûteux au solveur électrique lorsque le résultat est connu d'avance~: le centre et ses abords immédiats constituent les meilleures ouvertures sur Hex, indépendamment de l'état du plateau.
+
+% ─────────────────────────────────────────────
+\section{Méthodologie et évolution de l'agent}
+% ─────────────────────────────────────────────
+
+\subsection{Agent 1 : MiniMax de base}
+
+Le premier agent utilise l'algorithme MiniMax avec élagage alpha-bêta à profondeur fixe $d = 2$. Le modèle électrique est construit avec une matrice dense NumPy de taille $n^2 \times n^2$, soit $196^2 = 38\,416$ entrées pour un plateau $14 \times 14$. Il n'y a aucun cache, aucune connaissance stratégique (ponts virtuels, gabarits de bord), et l'objet \texttt{GameStateHex} de Seahorse est manipulé directement à chaque appel, ce qui ajoute un surcoût important.
+
+\subsection{Agent 2 : MiniMax optimisé}
+
+La version V3 introduit trois améliorations majeures~:
+
+\textbf{Géométrie précalculée~:} La structure du plateau (voisins, liens de pont virtuel) est calculée une seule fois dans \texttt{\_get\_geom}. Le plateau est représenté comme un vecteur \texttt{List[str]} au lieu d'un objet \texttt{GameStateHex}.
+
+\textbf{Matrice creuse~:} On abandonne la matrice dense au profit d'une matrice creuse COO/CSR, réduisant la mémoire et le temps de construction.
+
+\textbf{Cache LRU~:} Les résultats d'ampérage et d'évaluation sont mis en cache dans des \texttt{OrderedDict} à 50\,000 entrées, avec une table de transposition \texttt{\_tt} pour le MiniMax.
+
+Des connaissances stratégiques sont introduites~: ouverture au centre, détection des coups gagnants immédiats, et modélisation des ponts virtuels alliés dans le circuit électrique.
+
+\subsection{Agent 3 : MiniMax + initialisation à chaud}
+
+La V4 reprend la V3 MiniMax et ajoute une \textit{initialisation à chaud} pour la résolution par gradient conjugué~: la solution de tension calculée au coup précédent est réutilisée comme point de départ $x_0$, réduisant le nombre d'itérations nécessaires à la convergence (\texttt{CG\_MAXITER = 40}).
+
+\subsection{Agent 4 : (\texttt{fullheuristicvolt}) — Agent final}
+
+
+
+% ─────────────────────────────────────────────
+\section{Résultats}
+% ─────────────────────────────────────────────
+
+\subsection{Précision}
+
+\subsection{Performance}
+
+% ─────────────────────────────────────────────
+\section{Pistes d'améliorations et conclusion}
+% ─────────────────────────────────────────────
+
+
+% ─────────────────────────────────────────────
 
 \end{multicols}
 
