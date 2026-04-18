@@ -1,14 +1,16 @@
 '''
-Agent hybride Heuristique → MiniMax.
+Agent hybride MCTS → MiniMax.
+- Phase 1 (First 30 moves): Heavy Leaf MCTS
+- Phase 2 (Late game): Alpha-Beta Minimax
 - Bridges + edge templates II/III/IV + double bridges in amperage model
-- NO forced template intrusions or ladder blocking — greedy search decides
-- Only forced moves: immediate wins + bridge rescue
-- Ordonnancement : pure voltage
 - Evaluation : Pure Amperage (Variable Resistivity + spsolve)
+- Ordering: Lean pure voltage (no intrusion penalties)
+- Forced Moves: Wins and Blocks only (Bridge rescue disabled)
 '''
 
 from __future__ import annotations
 
+import math
 import time
 from collections import OrderedDict
 from typing import Dict, List, Set, Tuple
@@ -121,85 +123,39 @@ def _has_won(board: List[str], piece: str, geom: dict) -> bool:
                     stack.append(nb)
     return False
 
+# ===========================================================================
+# MCTS Node
+# ===========================================================================
+
+class MCTSNode:
+    def __init__(self, move: int = None, parent: 'MCTSNode' = None, state_board: List[str] = None, to_play: str = None):
+        self.move = move
+        self.parent = parent
+        self.board = state_board  
+        self.to_play = to_play    
+        self.children: List['MCTSNode'] = []
+        self.visits = 0
+        self.value = 0.0          
+        self.untried_moves: List[int] = [] 
+        self.is_terminal = False
+        self.terminal_value = 0.0 
+
+    def ucb1(self, exploration_c: float = 0.5, is_minimizing: bool = False) -> float:
+        if self.visits == 0:
+            return float('inf')
+        
+        win_rate = self.value / self.visits
+        exploit = (1.0 - win_rate) if is_minimizing else win_rate
+        explore = exploration_c * math.sqrt(math.log(self.parent.visits) / self.visits)
+        return exploit + explore
 
 # ===========================================================================
 # Edge template geometry (used by amperage model only)
 # ===========================================================================
 
-def _get_template_II_instances(n: int, piece: str):
-    """
-    Template II: stone on row 1 (R) or col 1 (B), carrier on row 0 / col 0.
-    Returns (stone_idx, carrier_a, carrier_b).
-    """
-    insts = []
-    if piece == "R":
-        for c in range(n - 1):
-            insts.append((1 * n + c, 0 * n + c, 0 * n + (c + 1)))
-        for c in range(1, n):
-            insts.append(((n - 2) * n + c, (n - 1) * n + c, (n - 1) * n + (c - 1)))
-    else:
-        for r in range(n - 1):
-            insts.append((r * n + 1, r * n, (r + 1) * n))
-        for r in range(1, n):
-            insts.append((r * n + (n - 2), r * n + (n - 1), (r - 1) * n + (n - 1)))
-    return insts
-
-
-def _get_template_III_instances(n: int, piece: str):
-    """
-    Template III / Ziggurat (unbreakable): stone on row 2, carrier on rows 0-1.
-    Returns (stone_idx, all_carrier, key0, key1).
-    """
-    insts = []
-
-    def _try(stone, cells, k0, k1):
-        if stone >= 0 and k0 >= 0 and k1 >= 0 and all(x >= 0 for x in cells):
-            insts.append((stone, cells, k0, k1))
-
-    if piece == "R":
-        for c in range(n):
-            s = _cell(2, c, n)
-            _try(s, [_cell(1, c, n), _cell(1, c+1, n),
-                      _cell(0, c, n), _cell(0, c+1, n), _cell(0, c+2, n)],
-                 _cell(1, c, n), _cell(1, c+1, n))
-            _try(s, [_cell(1, c-1, n), _cell(1, c, n),
-                      _cell(0, c-2, n), _cell(0, c-1, n), _cell(0, c, n)],
-                 _cell(1, c-1, n), _cell(1, c, n))
-        for c in range(n):
-            s = _cell(n-3, c, n)
-            _try(s, [_cell(n-2, c-1, n), _cell(n-2, c, n),
-                      _cell(n-1, c-2, n), _cell(n-1, c-1, n), _cell(n-1, c, n)],
-                 _cell(n-2, c-1, n), _cell(n-2, c, n))
-            _try(s, [_cell(n-2, c, n), _cell(n-2, c+1, n),
-                      _cell(n-1, c, n), _cell(n-1, c+1, n), _cell(n-1, c+2, n)],
-                 _cell(n-2, c, n), _cell(n-2, c+1, n))
-    else:
-        for r in range(n):
-            s = _cell(r, 2, n)
-            _try(s, [_cell(r, 1, n), _cell(r+1, 1, n),
-                      _cell(r, 0, n), _cell(r+1, 0, n), _cell(r+2, 0, n)],
-                 _cell(r, 1, n), _cell(r+1, 1, n))
-            _try(s, [_cell(r-1, 1, n), _cell(r, 1, n),
-                      _cell(r-2, 0, n), _cell(r-1, 0, n), _cell(r, 0, n)],
-                 _cell(r-1, 1, n), _cell(r, 1, n))
-        for r in range(n):
-            s = _cell(r, n-3, n)
-            _try(s, [_cell(r-1, n-2, n), _cell(r, n-2, n),
-                      _cell(r-2, n-1, n), _cell(r-1, n-1, n), _cell(r, n-1, n)],
-                 _cell(r-1, n-2, n), _cell(r, n-2, n))
-            _try(s, [_cell(r, n-2, n), _cell(r+1, n-2, n),
-                      _cell(r, n-1, n), _cell(r+1, n-1, n), _cell(r+2, n-1, n)],
-                 _cell(r, n-2, n), _cell(r+1, n-2, n))
-    return insts
-
-
 def _get_template_IV_instances(n: int, piece: str):
-    """
-    Template IV-1-a (defendable): stone on row 3, carrier on rows 0-2.
-    Returns (stone_idx, all_carrier, key0, key1).
-    """
+    """Template IV-1-a (defendable): stone on row 3, carrier on rows 0-2."""
     insts = []
-
     def _try(stone, cells, k0, k1):
         if stone >= 0 and k0 >= 0 and k1 >= 0 and all(x >= 0 for x in cells):
             insts.append((stone, cells, k0, k1))
@@ -258,44 +214,6 @@ def _get_template_IV_instances(n: int, piece: str):
 
 
 # ===========================================================================
-# Double bridge detection
-# ===========================================================================
-
-def _find_double_bridges(board: List[str], piece: str, geom: dict) -> List[Tuple[int, int]]:
-    opp = _other(piece)
-    pair_bridges: Dict[Tuple[int, int], List[Tuple[int, int]]] = {}
-    for idx in range(len(board)):
-        if board[idx] != piece:
-            continue
-        for partner, c1, c2 in geom["bridge_links"][idx]:
-            if board[partner] != piece:
-                continue
-            if board[c1] == opp or board[c2] == opp:
-                continue
-            pair = (min(idx, partner), max(idx, partner))
-            if pair not in pair_bridges:
-                pair_bridges[pair] = []
-            pair_bridges[pair].append((c1, c2))
-
-    result = []
-    for (a, b), bridges in pair_bridges.items():
-        if len(bridges) < 2:
-            continue
-        for i in range(len(bridges)):
-            si = {bridges[i][0], bridges[i][1]}
-            found = False
-            for j in range(i + 1, len(bridges)):
-                sj = {bridges[j][0], bridges[j][1]}
-                if not si & sj:
-                    found = True
-                    break
-            if found:
-                result.append((a, b))
-                break
-    return result
-
-
-# ===========================================================================
 # Player
 # ===========================================================================
 
@@ -306,7 +224,7 @@ class MyPlayer(PlayerHex):
     TIME_FRACTION = 0.06
     MIN_TIME_PER_MOVE = 0.5
 
-    def __init__(self, piece_type: str, name: str = "AmperesHybrid") -> None:
+    def __init__(self, piece_type: str, name: str = "AmperesMCTS-MiniMax") -> None:
         super().__init__(piece_type, name)
         self._amperage_cache: OrderedDict = OrderedDict()
         self._eval_cache: OrderedDict = OrderedDict()
@@ -321,6 +239,7 @@ class MyPlayer(PlayerHex):
         board, empties = self._extract_board(current_state, n)
         my_piece = self.piece_type
         opp_piece = _other(my_piece)
+        
         self._tt.clear()
         self._voltage_cache.clear()
 
@@ -335,31 +254,40 @@ class MyPlayer(PlayerHex):
             if board[center_idx] == ".":
                 return self._to_action(center_idx, n)
 
-        # --- Immediate wins ---
+        # --- 🚨 FORCED MOVES TOOL 🚨 ---
         my_wins = self._winning_moves(board, empties, my_piece, geom)
         if my_wins:
-            return self._to_action(self._ordered_moves(board, my_wins, my_piece, geom)[0], n)
+            print(f"\n[{self.name}] ⚡ FORCED MOVE: Immediate Win at ({my_wins[0] // n}, {my_wins[0] % n})")
+            return self._to_action(my_wins[0], n)
+            
         opp_wins = self._winning_moves(board, empties, opp_piece, geom)
         if opp_wins:
-            return self._to_action(self._ordered_moves(board, opp_wins, my_piece, geom)[0], n)
+            print(f"\n[{self.name}] 🛡️ FORCED MOVE: Blocking Opponent Win at ({opp_wins[0] // n}, {opp_wins[0] % n})")
+            return self._to_action(opp_wins[0], n)
 
         # Un peu trash ca --- Bridge defense (only forced move besides wins) ---
         #rescue_moves = self._bridge_responses(board, my_piece, geom)
         #if rescue_moves:
         #    rescue_list = [m for m in rescue_moves if m in empties]
         #    if rescue_list:
-        #        return self._to_action(self._pick_best(board, rescue_list, my_piece, geom), n)
+        #        mv = self._pick_best(board, rescue_list, my_piece, geom)
+        #        print(f"\n[{self.name}] 🌉 FORCED MOVE: Bridge Rescue at ({mv // n}, {mv % n})")
+        #        return self._to_action(mv, n)
 
-        # --- Algorithm choice: greedy search decides everything else ---
+        # --- Algorithm choice: MCTS -> MiniMax ---
         total_cells = geom["size"]
-        half_full = len(empties) <= total_cells // 2
+        moves_played = total_cells - len(empties)
 
-        if half_full:
-            time_budget = max(self.MIN_TIME_PER_MOVE, remaining_time * self.TIME_FRACTION)
-            deadline = time.time() + time_budget
-            chosen = self._minimax_pick(board, empties, my_piece, geom, deadline)
+        time_budget = max(self.MIN_TIME_PER_MOVE, remaining_time * self.TIME_FRACTION)
+        deadline = time.time() + time_budget
+
+        if moves_played < 30:
+            # PHASE 1: Heavy Leaf MCTS for the wide open early/mid game
+            chosen = self._mcts_search(board, empties, my_piece, geom, deadline)
         else:
-            chosen = self._greedy_pick(board, empties, my_piece, geom)
+            # PHASE 2: Minimax Alpha-Beta for tactical late game
+            print(f"\n[{self.name}] Switching to Minimax (Moves Played: {moves_played})")
+            chosen = self._minimax_pick(board, empties, my_piece, geom, deadline)
 
         # --- Post-search override: critical template blocking ---
         override = self._critical_template_override(
@@ -369,39 +297,76 @@ class MyPlayer(PlayerHex):
 
         return self._to_action(chosen, n)
 
-    def _pick_best(self, board, move_list, piece, geom):
-        if len(move_list) == 1:
-            return move_list[0]
-        best = move_list[0]
-        best_sc = float("-inf")
-        for mv in move_list:
-            board[mv] = piece
-            sc = self._evaluate_board(board, piece, geom)
-            board[mv] = "."
-            if sc > best_sc:
-                best_sc = sc
-                best = mv
-        return best
-
     # -----------------------------------------------------------------------
-    # Greedy (early/mid)
+    # MCTS (early/mid game)
     # -----------------------------------------------------------------------
 
-    def _greedy_pick(self, board, empties, my_piece, geom):
-        ordered = self._ordered_moves(board, empties, my_piece, geom)
-        best_move = ordered[0]
-        best_score = float("-inf")
-        for mv in ordered:
-            board[mv] = my_piece
-            if _has_won(board, my_piece, geom):
-                board[mv] = "."
-                return mv
-            score = self._evaluate_board(board, my_piece, geom)
-            board[mv] = "."
-            if score > best_score:
-                best_score = score
-                best_move = mv
-        return best_move
+    def _mcts_search(self, board, empties, root_piece, geom, deadline):
+        root = MCTSNode(state_board=list(board), to_play=root_piece)
+        root.untried_moves = self._ordered_moves(board, empties, root_piece, geom)
+        
+        iterations = 0
+        while time.time() < deadline:
+            iterations += 1
+            node = root
+            
+            # 1. SELECTION
+            while not node.untried_moves and node.children and not node.is_terminal:
+                is_minimizing = (node.to_play != root_piece)
+                node = max(node.children, key=lambda c: c.ucb1(exploration_c=0.5, is_minimizing=is_minimizing))
+
+            # 2. EXPANSION
+            if node.untried_moves and not node.is_terminal:
+                move = node.untried_moves.pop(0) 
+                next_state = list(node.board)
+                next_state[move] = node.to_play
+                next_piece = _other(node.to_play)
+                
+                child = MCTSNode(move=move, parent=node, state_board=next_state, to_play=next_piece)
+                
+                if _has_won(next_state, node.to_play, geom):
+                    child.is_terminal = True
+                    child.terminal_value = 1.0 if node.to_play == root_piece else 0.0
+                else:
+                    child.untried_moves = [m for m in empties if next_state[m] == "."]
+                
+                node.children.append(child)
+                node = child
+
+            # 3. HEAVY LEAF EVALUATION
+            if node.is_terminal:
+                v = node.terminal_value
+            else:
+                amp_diff = self._evaluate_board(node.board, root_piece, geom)
+                # Temperature 50.0 to widen probabilities
+                v = 1.0 / (1.0 + math.exp(-50.0 * amp_diff)) 
+
+            # 4. BACKPROPAGATION
+            while node is not None:
+                node.visits += 1
+                node.value += v 
+                node = node.parent
+
+        self._debug_mcts_tree(root, iterations, geom["n"])
+
+        if not root.children:
+            return root.untried_moves[0] if root.untried_moves else 0
+            
+        best_child = max(root.children, key=lambda c: c.visits)
+        return best_child.move
+
+    def _debug_mcts_tree(self, root: MCTSNode, iterations: int, n: int):
+        print(f"\n[{self.name}] MCTS Complete: {iterations} iterations.")
+        if not root.children: return
+
+        sorted_children = sorted(root.children, key=lambda c: c.visits, reverse=True)
+        print(f"{'Move':>8} | {'Visits':>8} | {'P(Win)':>8} | {'UCB1':>8}")
+        print("-" * 40)
+        for child in sorted_children[:5]: 
+            move_str = f"({child.move // n}, {child.move % n})"
+            win_rate = child.value / child.visits if child.visits > 0 else 0.0
+            ucb = child.ucb1() if child.visits > 0 else 0.0
+            print(f"{move_str:>8} | {child.visits:>8} | {win_rate:>7.2%} | {ucb:>8.3f}")
 
     # -----------------------------------------------------------------------
     # Minimax (late game)
@@ -532,7 +497,6 @@ class MyPlayer(PlayerHex):
         opp = _other(target_piece)
         center = geom["center"]
         
-        # Apply Variable Resistivity + Opponent Halo
         resistances = []
         for idx, p in enumerate(board_key):
             if p == target_piece:
@@ -546,7 +510,6 @@ class MyPlayer(PlayerHex):
                 dist_sq = (row_dist**2 + col_dist**2) / 2.0
                 r_val = 1.0 + 5.0 * dist_sq
                 
-                # HALO EFFECT: Push current away from opponent to stop "Thick Wire" detours
                 opp_adj = sum(1 for nb in geom["neighbors"][idx] if board_key[nb] == opp)
                 r_val += 3.0 * opp_adj 
                 
@@ -557,12 +520,8 @@ class MyPlayer(PlayerHex):
         diag_sums = [0.0] * size
         diag_extra = [0.0] * size
 
-        # ---------------------------------------------------------
-        # SOURCE IMPEDANCE: Caps the injection singularity at the edges
-        # ---------------------------------------------------------
         R_CONTACT = 10.0 
 
-        # --- Standard resistor network ---
         for idx in range(size):
             r_i = resistances[idx]
             if r_i == float("inf"):
@@ -579,7 +538,6 @@ class MyPlayer(PlayerHex):
             src, snk = 0.0, 0.0
             row, col = geom["rows"][idx], geom["cols"][idx]
             
-            # Use R_CONTACT to prevent the math from outputting 2000 Amps on edge plays
             if direction == "HAUTBAS":
                 if row == 0: src = 2.0 / (R_CONTACT + r_i)
                 if row == n - 1: snk = 2.0 / (R_CONTACT + r_i)
@@ -588,9 +546,8 @@ class MyPlayer(PlayerHex):
                 if col == n - 1: snk = 2.0 / (R_CONTACT + r_i)
                 
             diag_sums[idx] += src + snk
-            current[idx] = src # Only the source injects current into the RHS
+            current[idx] = src 
 
-        # --- Bridge conductance (stone ↔ stone) ---
         seen_pairs = set()
         for idx in range(size):
             if board_key[idx] != target_piece:
@@ -617,7 +574,6 @@ class MyPlayer(PlayerHex):
                 diag_extra[idx] += bc
                 diag_extra[partner] += bc
 
-        # --- Assemble matrix ---
         for idx in range(size):
             if resistances[idx] != float("inf"):
                 row_idx.append(idx); col_idx.append(idx)
@@ -635,7 +591,6 @@ class MyPlayer(PlayerHex):
                 col = i if direction == "HAUTBAS" else 0
                 idx = row * n + col
                 if resistances[idx] != float("inf"):
-                    # Calculate total output current using the SAME R_CONTACT cap
                     total += (2.0 / (R_CONTACT + resistances[idx])) * (1.0 - voltages[idx])
             result = float(total)
         except Exception:
@@ -647,7 +602,7 @@ class MyPlayer(PlayerHex):
         return result
 
     # -----------------------------------------------------------------------
-    # Move ordering: pure voltage
+    # Move ordering (Lean: pure voltage only)
     # -----------------------------------------------------------------------
 
     def _ordered_moves(self, board, moves, piece, geom):
@@ -674,12 +629,14 @@ class MyPlayer(PlayerHex):
             if opp_v is not None:
                 val = max(0.0, min(1.0, float(opp_v[idx])))
                 opp_score = val * (1.0 - val)
+                
             scored.append((my_score + opp_score, idx))
+            
         scored.sort(reverse=True)
         return [idx for _, idx in scored]
 
     # -----------------------------------------------------------------------
-    # Bridge responses (only forced move)
+    # Utilities & Template logic
     # -----------------------------------------------------------------------
 
     def _bridge_responses(self, board, piece, geom):
@@ -696,13 +653,41 @@ class MyPlayer(PlayerHex):
                 elif board[c2] == opp and board[c1] == ".":
                     responses.add(c1)
         return responses
+        
+    def _pick_best(self, board, move_list, piece, geom):
+        if len(move_list) == 1:
+            return move_list[0]
+        best = move_list[0]
+        best_sc = float("-inf")
+        for mv in move_list:
+            board[mv] = piece
+            sc = self._evaluate_board(board, piece, geom)
+            board[mv] = "."
+            if sc > best_sc:
+                best_sc = sc
+                best = mv
+        return best
 
-    # -----------------------------------------------------------------------
-    # Post-search override: block critical opponent templates
-    # -----------------------------------------------------------------------
+    def _winning_moves(self, board, empties, piece, geom):
+        wins = []
+        for idx in empties:
+            board[idx] = piece
+            if _has_won(board, piece, geom):
+                wins.append(idx)
+            board[idx] = "."
+        return wins
 
-    def _critical_template_override(self, board, chosen_move, empties,
-                                     my_piece, opp_piece, geom):
+    def _extract_board(self, state, n):
+        board = ["."] * (n * n)
+        for (r, c), piece in state.get_rep().get_env().items():
+            board[r * n + c] = piece.get_type()
+        empties = [idx for idx, cell in enumerate(board) if cell == "."]
+        return board, empties
+
+    def _to_action(self, idx, n):
+        return StatelessAction({"piece": self.piece_type, "position": (idx // n, idx % n)})
+
+    def _critical_template_override(self, board, chosen_move, empties, my_piece, opp_piece, geom):
         n = geom["n"]
         board_key = tuple(board)
 
@@ -715,7 +700,6 @@ class MyPlayer(PlayerHex):
 
         VOLTAGE_LOW = 0.2
         VOLTAGE_HIGH = 0.8
-
         critical_targets: List[Tuple[float, int]] = []
 
         for stone, carrier, k0, k1 in _get_template_IV_instances(n, opp_piece):
@@ -769,26 +753,3 @@ class MyPlayer(PlayerHex):
             return best_block
 
         return None
-
-    # -----------------------------------------------------------------------
-    # Utilities
-    # -----------------------------------------------------------------------
-
-    def _winning_moves(self, board, empties, piece, geom):
-        wins = []
-        for idx in empties:
-            board[idx] = piece
-            if _has_won(board, piece, geom):
-                wins.append(idx)
-            board[idx] = "."
-        return wins
-
-    def _extract_board(self, state, n):
-        board = ["."] * (n * n)
-        for (r, c), piece in state.get_rep().get_env().items():
-            board[r * n + c] = piece.get_type()
-        empties = [idx for idx, cell in enumerate(board) if cell == "."]
-        return board, empties
-
-    def _to_action(self, idx, n):
-        return StatelessAction({"piece": self.piece_type, "position": (idx // n, idx % n)})

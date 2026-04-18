@@ -5,6 +5,7 @@ Agent hybride Heuristique → MiniMax.
 - Only forced moves: immediate wins + bridge rescue
 - Ordonnancement : pure voltage
 - Evaluation : Pure Amperage (Variable Resistivity + spsolve)
+- Time management: front-loaded budget, always MiniMax with iterative deepening
 '''
 
 from __future__ import annotations
@@ -303,8 +304,10 @@ class MyPlayer(PlayerHex):
     WIN_SCORE = 10**7
     MAX_AMPERAGE_CACHE = 50000
     MAX_EVAL_CACHE = 50000
-    TIME_FRACTION = 0.06
     MIN_TIME_PER_MOVE = 0.5
+    EXPECTED_MOVES_PER_GAME = 40   # estimation du nombre de coups par joueur
+    ROOT_BRANCHING = 20            # top-K candidats à la racine
+    INNER_BRANCHING = 12           # top-K en profondeur
 
     def __init__(self, piece_type: str, name: str = "AmperesHybrid") -> None:
         super().__init__(piece_type, name)
@@ -343,23 +346,18 @@ class MyPlayer(PlayerHex):
         if opp_wins:
             return self._to_action(self._ordered_moves(board, opp_wins, my_piece, geom)[0], n)
 
-        # Un peu trash ca --- Bridge defense (only forced move besides wins) ---
-        #rescue_moves = self._bridge_responses(board, my_piece, geom)
-        #if rescue_moves:
-        #    rescue_list = [m for m in rescue_moves if m in empties]
-        #    if rescue_list:
-        #        return self._to_action(self._pick_best(board, rescue_list, my_piece, geom), n)
+        # --- Bridge defense (only forced move besides wins) ---
+        rescue_moves = self._bridge_responses(board, my_piece, geom)
+        if rescue_moves:
+            rescue_list = [m for m in rescue_moves if m in empties]
+            if rescue_list:
+                return self._to_action(self._pick_best(board, rescue_list, my_piece, geom), n)
 
-        # --- Algorithm choice: greedy search decides everything else ---
+        # --- Minimax avec iterative deepening, budget front-loaded ---
         total_cells = geom["size"]
-        half_full = len(empties) <= total_cells // 2
-
-        if half_full:
-            time_budget = max(self.MIN_TIME_PER_MOVE, remaining_time * self.TIME_FRACTION)
-            deadline = time.time() + time_budget
-            chosen = self._minimax_pick(board, empties, my_piece, geom, deadline)
-        else:
-            chosen = self._greedy_pick(board, empties, my_piece, geom)
+        time_budget = self._time_budget(remaining_time, len(empties), total_cells)
+        deadline = time.time() + time_budget
+        chosen = self._minimax_pick(board, empties, my_piece, geom, deadline)
 
         # --- Post-search override: critical template blocking ---
         override = self._critical_template_override(
@@ -368,6 +366,25 @@ class MyPlayer(PlayerHex):
             chosen = override
 
         return self._to_action(chosen, n)
+
+    # -----------------------------------------------------------------------
+    # Time allocation (front-loaded)
+    # -----------------------------------------------------------------------
+
+    def _time_budget(self, remaining_time, empties_count, total_cells):
+        """
+        Allocation front-loaded: les coups d'ouverture reçoivent plus de temps,
+        car les décisions y sont plus déterminantes et le cache est froid.
+        Formule: 2*T/(M+1) où M = coups restants estimés pour ce joueur.
+        """
+        moves_played = (total_cells - empties_count) // 2
+        moves_remaining = max(4, self.EXPECTED_MOVES_PER_GAME - moves_played)
+
+        budget = 2.0 * remaining_time / (moves_remaining + 1)
+
+        # Plafonds de sécurité : jamais sous le min, jamais plus de 30% du temps restant
+        budget = max(self.MIN_TIME_PER_MOVE, min(budget, remaining_time * 0.3))
+        return budget
 
     def _pick_best(self, board, move_list, piece, geom):
         if len(move_list) == 1:
@@ -384,32 +401,13 @@ class MyPlayer(PlayerHex):
         return best
 
     # -----------------------------------------------------------------------
-    # Greedy (early/mid)
-    # -----------------------------------------------------------------------
-
-    def _greedy_pick(self, board, empties, my_piece, geom):
-        ordered = self._ordered_moves(board, empties, my_piece, geom)
-        best_move = ordered[0]
-        best_score = float("-inf")
-        for mv in ordered:
-            board[mv] = my_piece
-            if _has_won(board, my_piece, geom):
-                board[mv] = "."
-                return mv
-            score = self._evaluate_board(board, my_piece, geom)
-            board[mv] = "."
-            if score > best_score:
-                best_score = score
-                best_move = mv
-        return best_move
-
-    # -----------------------------------------------------------------------
-    # Minimax (late game)
+    # Minimax avec iterative deepening
     # -----------------------------------------------------------------------
 
     def _minimax_pick(self, board, empties, my_piece, geom, deadline):
         opp_piece = _other(my_piece)
         ordered = self._ordered_moves(board, empties, my_piece, geom)
+        ordered = ordered[:self.ROOT_BRANCHING]
         best_move = ordered[0]
         best_score = float("-inf")
         for depth in range(1, 10):
@@ -457,6 +455,7 @@ class MyPlayer(PlayerHex):
         maximizing = to_play == root_piece
         next_piece = _other(to_play)
         ordered = self._ordered_moves(board, empties, to_play, geom)
+        ordered = ordered[:self.INNER_BRANCHING]
 
         if maximizing:
             best = float("-inf")
@@ -505,11 +504,11 @@ class MyPlayer(PlayerHex):
         if cached is not None:
             self._eval_cache.move_to_end(cache_key)
             return cached
-            
+
         opp = _other(root_piece)
         score = self._calculate_amperage(board_key, root_piece, geom) - \
                 self._calculate_amperage(board_key, opp, geom)
-                     
+
         self._eval_cache[cache_key] = score
         if len(self._eval_cache) > self.MAX_EVAL_CACHE:
             self._eval_cache.popitem(last=False)
@@ -531,7 +530,7 @@ class MyPlayer(PlayerHex):
         size = geom["size"]
         opp = _other(target_piece)
         center = geom["center"]
-        
+
         # Apply Variable Resistivity + Opponent Halo
         resistances = []
         for idx, p in enumerate(board_key):
@@ -545,11 +544,11 @@ class MyPlayer(PlayerHex):
                 col_dist = abs(col - center) / center
                 dist_sq = (row_dist**2 + col_dist**2) / 2.0
                 r_val = 1.0 + 5.0 * dist_sq
-                
+
                 # HALO EFFECT: Push current away from opponent to stop "Thick Wire" detours
                 opp_adj = sum(1 for nb in geom["neighbors"][idx] if board_key[nb] == opp)
-                r_val += 3.0 * opp_adj 
-                
+                r_val += 3.0 * opp_adj
+
                 resistances.append(r_val)
 
         row_idx, col_idx, data_vals = [], [], []
@@ -560,7 +559,7 @@ class MyPlayer(PlayerHex):
         # ---------------------------------------------------------
         # SOURCE IMPEDANCE: Caps the injection singularity at the edges
         # ---------------------------------------------------------
-        R_CONTACT = 10.0 
+        R_CONTACT = 10.0
 
         # --- Standard resistor network ---
         for idx in range(size):
@@ -575,10 +574,10 @@ class MyPlayer(PlayerHex):
                 c_val = 2.0 / (r_i + r_j)
                 row_idx.append(idx); col_idx.append(nb); data_vals.append(-c_val)
                 diag_sums[idx] += c_val
-                
+
             src, snk = 0.0, 0.0
             row, col = geom["rows"][idx], geom["cols"][idx]
-            
+
             # Use R_CONTACT to prevent the math from outputting 2000 Amps on edge plays
             if direction == "HAUTBAS":
                 if row == 0: src = 2.0 / (R_CONTACT + r_i)
@@ -586,7 +585,7 @@ class MyPlayer(PlayerHex):
             else:
                 if col == 0: src = 2.0 / (R_CONTACT + r_i)
                 if col == n - 1: snk = 2.0 / (R_CONTACT + r_i)
-                
+
             diag_sums[idx] += src + snk
             current[idx] = src # Only the source injects current into the RHS
 
@@ -604,13 +603,13 @@ class MyPlayer(PlayerHex):
                 if pair in seen_pairs:
                     continue
                 seen_pairs.add(pair)
-                
+
                 v1, v2 = board_key[c1], board_key[c2]
                 if v1 == target_piece or v2 == target_piece:
-                    continue 
-                
+                    continue
+
                 bc = 400.0 if (v1 == "." and v2 == ".") else 100.0
-                    
+
                 row_idx.extend([idx, partner])
                 col_idx.extend([partner, idx])
                 data_vals.extend([-bc, -bc])
@@ -628,7 +627,7 @@ class MyPlayer(PlayerHex):
         try:
             voltages = spsolve(g_csr, current)
             self._voltage_cache[(target_piece, board_key)] = voltages
-            
+
             total = 0.0
             for i in range(n):
                 row = 0 if direction == "HAUTBAS" else i
@@ -738,7 +737,7 @@ class MyPlayer(PlayerHex):
         chosen_set = {chosen_move}
         for _, target in critical_targets:
             if target in chosen_set:
-                return None 
+                return None
 
         critical_targets.sort(reverse=True)
         candidates = []
@@ -757,7 +756,7 @@ class MyPlayer(PlayerHex):
 
         best_block = candidates[0]
         best_block_score = float("-inf")
-        for mv in candidates[:4]: 
+        for mv in candidates[:4]:
             board[mv] = my_piece
             sc = self._evaluate_board(board, my_piece, geom)
             board[mv] = "."
