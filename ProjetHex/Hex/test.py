@@ -306,10 +306,9 @@ class MyPlayer(PlayerHex):
 
         # --- Algorithm choice: greedy search decides everything else ---
         total_cells = geom["size"]
-        moves_played = total_cells - len(empties)
-        use_minimax = moves_played >= 20
+        half_full = len(empties) <= total_cells // 2
 
-        if use_minimax:
+        if half_full:
             time_budget = max(self.MIN_TIME_PER_MOVE, remaining_time * self.TIME_FRACTION)
             deadline = time.time() + time_budget
             chosen = self._minimax_pick(board, empties, my_piece, geom, deadline)
@@ -363,11 +362,7 @@ class MyPlayer(PlayerHex):
         ordered = self._ordered_moves(board, empties, my_piece, geom)
         best_move = ordered[0]
         best_score = float("-inf")
-        t_start = time.time()
-        last_completed_depth = 0
-        
         for depth in range(1, 10):
-            depth_start = time.time()
             alpha, beta = float("-inf"), float("inf")
             cur_best_move, cur_best_score = ordered[0], float("-inf")
             completed = True
@@ -381,31 +376,17 @@ class MyPlayer(PlayerHex):
                 else:
                     rest = [e for e in empties if e != mv]
                     score = self._alpha_beta(board, rest, opp_piece, depth - 1,
-                                            alpha, beta, my_piece, geom, deadline)
+                                             alpha, beta, my_piece, geom, deadline)
                 board[mv] = "."
                 if score > cur_best_score:
                     cur_best_score = score
                     cur_best_move = mv
                 alpha = max(alpha, cur_best_score)
-            
-            depth_elapsed = time.time() - depth_start
-            status = "✓" if completed else "✗ (timeout)"
-            print(f"  depth={depth} {status} in {depth_elapsed:.2f}s, "
-                f"best_score={cur_best_score:.1f}, move={cur_best_move}")
-            
-            if completed:                          # ← CHANGEMENT : clause simple
+            if completed or cur_best_score > best_score:
                 best_score = cur_best_score
                 best_move = cur_best_move
-                last_completed_depth = depth
-            
             if time.time() > deadline:
                 break
-        
-        total_elapsed = time.time() - t_start
-        print(f"→ minimax completed depth {last_completed_depth} "
-            f"in {total_elapsed:.2f}s (budget {deadline - t_start:.2f}s), "
-            f"final move={best_move}, score={best_score:.1f}")
-        
         return best_move
 
     def _alpha_beta(self, board, empties, to_play, depth, alpha, beta,
@@ -560,10 +541,6 @@ class MyPlayer(PlayerHex):
             current[idx] = src # Only the source injects current into the RHS
 
         # --- Bridge conductance (stone ↔ stone) ---
-        # Applique un bonus de conductance uniquement sur les ponts
-        # virtuels purs (deux intermédiaires vides entre alliés).
-        # Tous les autres cas sont laissés au réseau de résistances,
-        # qui les évalue déjà correctement.
         seen_pairs = set()
         for idx in range(size):
             if board_key[idx] != target_piece:
@@ -571,17 +548,21 @@ class MyPlayer(PlayerHex):
             for partner, c1, c2 in geom["bridge_links"][idx]:
                 if board_key[partner] != target_piece:
                     continue
+                if board_key[c1] == opp or board_key[c2] == opp:
+                    continue
 
-                v1, v2 = board_key[c1], board_key[c2]
-                if v1 != "." or v2 != ".":
-                    continue   # pont non vide : laissé au réseau
-
+                # On sassure de ne pas doubler les ponts
                 pair = (min(idx, partner), max(idx, partner))
                 if pair in seen_pairs:
                     continue
                 seen_pairs.add(pair)
-
-                bc = 400.0
+                
+                v1, v2 = board_key[c1], board_key[c2]
+                if v1 == target_piece or v2 == target_piece:
+                    continue 
+                
+                bc = 400.0 if (v1 == "." and v2 == ".") else 100.0
+                    
                 row_idx.extend([idx, partner])
                 col_idx.extend([partner, idx])
                 data_vals.extend([-bc, -bc])
