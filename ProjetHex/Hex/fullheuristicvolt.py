@@ -304,13 +304,6 @@ class MyPlayer(PlayerHex):
         if opp_wins:
             return self._to_action(self._ordered_moves(board, opp_wins, my_piece, geom)[0], n)
 
-        # Un peu trash ca --- Bridge defense (only forced move besides wins) ---
-        #rescue_moves = self._bridge_responses(board, my_piece, geom)
-        #if rescue_moves:
-        #    rescue_list = [m for m in rescue_moves if m in empties]
-        #    if rescue_list:
-        #        return self._to_action(self._pick_best(board, rescue_list, my_piece, geom), n)
-
         # --- Algorithm choice: greedy search decides everything else ---
         total_cells = geom["size"]
         half_full = len(empties) <= total_cells // 2
@@ -634,25 +627,6 @@ class MyPlayer(PlayerHex):
             scored.append((my_score + opp_score, idx))
         scored.sort(reverse=True)
         return [idx for _, idx in scored]
-
-    # -----------------------------------------------------------------------
-    # Bridge responses (only forced move)
-    # -----------------------------------------------------------------------
-
-    def _bridge_responses(self, board, piece, geom):
-        opp = _other(piece)
-        responses: Set[int] = set()
-        for idx, cell in enumerate(board):
-            if cell != piece:
-                continue
-            for partner, c1, c2 in geom["bridge_links"][idx]:
-                if board[partner] != piece:
-                    continue
-                if board[c1] == opp and board[c2] == ".":
-                    responses.add(c2)
-                elif board[c2] == opp and board[c1] == ".":
-                    responses.add(c1)
-        return responses
 
     # -----------------------------------------------------------------------
     # Post-search override: block critical opponent templates
