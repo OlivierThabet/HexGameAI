@@ -388,14 +388,10 @@ class MyPlayer(PlayerHex):
     # -----------------------------------------------------------------------
 
     def _greedy_pick(self, board, empties, my_piece, geom):
-        ordered = self._ordered_moves(board, empties, my_piece, geom)
-        best_move = ordered[0]
+        best_move = empties[0]
         best_score = float("-inf")
-        for mv in ordered:
+        for mv in empties:
             board[mv] = my_piece
-            if _has_won(board, my_piece, geom):
-                board[mv] = "."
-                return mv
             score = self._evaluate_board(board, my_piece, geom)
             board[mv] = "."
             if score > best_score:

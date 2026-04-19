@@ -1,0 +1,18 @@
+\babel@toc {french}{}\relax 
+\contentsline {section}{\numberline {1}Introduction}{3}{section.1}%
+\contentsline {section}{\numberline {2}Heuristique}{3}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Principe}{3}{subsection.2.1}%
+\contentsline {section}{\numberline {3}Stratégies exactes}{3}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Ponts virtuels}{3}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Gabarits de bord}{3}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Filtrage des ponts virtuels adverses}{3}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}Ouverture au centre}{3}{subsection.3.4}%
+\contentsline {section}{\numberline {4}Méthodologie et évolution de l'agent}{4}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Agent 1 : MiniMax de base}{4}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Agent 2 : MiniMax optimisé}{4}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Agent 3 : MiniMax + initialisation à chaud}{4}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}Agent 4 : (\texttt {fullheuristicvolt}) — Agent final}{4}{subsection.4.4}%
+\contentsline {section}{\numberline {5}Résultats}{4}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Précision}{4}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Performance}{4}{subsection.5.2}%
+\contentsline {section}{\numberline {6}Pistes d'améliorations et conclusion}{4}{section.6}%
