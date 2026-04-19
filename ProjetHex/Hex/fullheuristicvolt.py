@@ -256,45 +256,6 @@ def _get_template_IV_instances(n: int, piece: str):
             _try(s, [k0m, k1m] + restm, k0m, k1m)
     return insts
 
-
-# ===========================================================================
-# Double bridge detection
-# ===========================================================================
-
-def _find_double_bridges(board: List[str], piece: str, geom: dict) -> List[Tuple[int, int]]:
-    opp = _other(piece)
-    pair_bridges: Dict[Tuple[int, int], List[Tuple[int, int]]] = {}
-    for idx in range(len(board)):
-        if board[idx] != piece:
-            continue
-        for partner, c1, c2 in geom["bridge_links"][idx]:
-            if board[partner] != piece:
-                continue
-            if board[c1] == opp or board[c2] == opp:
-                continue
-            pair = (min(idx, partner), max(idx, partner))
-            if pair not in pair_bridges:
-                pair_bridges[pair] = []
-            pair_bridges[pair].append((c1, c2))
-
-    result = []
-    for (a, b), bridges in pair_bridges.items():
-        if len(bridges) < 2:
-            continue
-        for i in range(len(bridges)):
-            si = {bridges[i][0], bridges[i][1]}
-            found = False
-            for j in range(i + 1, len(bridges)):
-                sj = {bridges[j][0], bridges[j][1]}
-                if not si & sj:
-                    found = True
-                    break
-            if found:
-                result.append((a, b))
-                break
-    return result
-
-
 # ===========================================================================
 # Player
 # ===========================================================================
