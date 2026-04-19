@@ -123,13 +123,17 @@ def _has_won(board: List[str], piece: str, geom: dict) -> bool:
 
 
 # ===========================================================================
-# Edge template geometry (used by amperage model only)
+# Geometrie des templates de bord
+# Utilisee uniquement dans le modele d'amperage
 # ===========================================================================
 
 def _get_template_II_instances(n: int, piece: str):
     """
-    Template II: stone on row 1 (R) or col 1 (B), carrier on row 0 / col 0.
-    Returns (stone_idx, carrier_a, carrier_b).
+    Template II :
+    - pour R, la pierre d'ancrage est sur la ligne 1 ;
+    - pour B, la meme structure apparait par symetrie sur les colonnes.
+
+    Retourne : (indice_pierre, support_a, support_b).
     """
     insts = []
     if piece == "R":
@@ -147,8 +151,10 @@ def _get_template_II_instances(n: int, piece: str):
 
 def _get_template_III_instances(n: int, piece: str):
     """
-    Template III / Ziggurat (unbreakable): stone on row 2, carrier on rows 0-1.
-    Returns (stone_idx, all_carrier, key0, key1).
+    Template III, ou "ziggurat" :
+    la pierre d'ancrage est sur la ligne 2 et le support s'etend sur les lignes 0 et 1.
+
+    Retourne : (indice_pierre, support_complet, cle_0, cle_1).
     """
     insts = []
 
@@ -195,8 +201,11 @@ def _get_template_III_instances(n: int, piece: str):
 
 def _get_template_IV_instances(n: int, piece: str):
     """
-    Template IV-1-a (defendable): stone on row 3, carrier on rows 0-2.
-    Returns (stone_idx, all_carrier, key0, key1).
+    Template IV-1-a :
+    la pierre d'ancrage est plus profonde, sur la ligne 3,
+    avec un support distribue sur les lignes 0 a 2.
+
+    Retourne : (indice_pierre, support_complet, cle_0, cle_1).
     """
     insts = []
 
@@ -256,9 +265,6 @@ def _get_template_IV_instances(n: int, piece: str):
             _try(s, [k0m, k1m] + restm, k0m, k1m)
     return insts
 
-# ===========================================================================
-# Player
-# ===========================================================================
 
 class MyPlayer(PlayerHex):
     WIN_SCORE = 10**7
@@ -288,7 +294,7 @@ class MyPlayer(PlayerHex):
         if not empties:
             return self._to_action(0, n)
 
-        # --- Opening: center ---
+        # --- Debut de partie : priorite a une implantation centrale ---
         my_stones = sum(1 for cell in board if cell == my_piece)
         if my_stones == 0:
             center = n // 2
@@ -296,7 +302,7 @@ class MyPlayer(PlayerHex):
             if board[center_idx] == ".":
                 return self._to_action(center_idx, n)
 
-        # --- Immediate wins ---
+        # --- Priorite immediate : gagner tout de suite ou bloquer une victoire adverse ---
         my_wins = self._winning_moves(board, empties, my_piece, geom)
         if my_wins:
             return self._to_action(self._ordered_moves(board, my_wins, my_piece, geom)[0], n)
@@ -304,10 +310,10 @@ class MyPlayer(PlayerHex):
         if opp_wins:
             return self._to_action(self._ordered_moves(board, opp_wins, my_piece, geom)[0], n)
 
-        # --- Algorithm choice: greedy search decides everything else ---
+        # --- En dehors des urgences, on choisit entre glouton et minimax ---
         total_cells = geom["size"]
         moves_played = total_cells - len(empties)
-        use_minimax = moves_played >= 20
+        use_minimax = moves_played >= 49
 
         if use_minimax:
             time_budget = max(self.MIN_TIME_PER_MOVE, remaining_time * self.TIME_FRACTION)
@@ -316,7 +322,7 @@ class MyPlayer(PlayerHex):
         else:
             chosen = self._greedy_pick(board, empties, my_piece, geom)
 
-        # --- Post-search override: critical template blocking ---
+        # --- Ajustement final : on bloque un template adverse critique si besoin ---
         override = self._critical_template_override(
             board, chosen, empties, my_piece, opp_piece, geom)
         if override is not None:
@@ -339,7 +345,7 @@ class MyPlayer(PlayerHex):
         return best
 
     # -----------------------------------------------------------------------
-    # Greedy (early/mid)
+    # Selection gloutonne : surtout ouverture et milieu de partie
     # -----------------------------------------------------------------------
 
     def _greedy_pick(self, board, empties, my_piece, geom):
@@ -355,7 +361,7 @@ class MyPlayer(PlayerHex):
         return best_move
 
     # -----------------------------------------------------------------------
-    # Minimax (late game)
+    # Minimax : plutot reserve aux positions plus denses
     # -----------------------------------------------------------------------
 
     def _minimax_pick(self, board, empties, my_piece, geom, deadline):
@@ -393,7 +399,7 @@ class MyPlayer(PlayerHex):
             print(f"  depth={depth} {status} in {depth_elapsed:.2f}s, "
                 f"best_score={cur_best_score:.1f}, move={cur_best_move}")
             
-            if completed:                          # ← CHANGEMENT : clause simple
+            if completed:                          # on ne valide qu'une profondeur terminee
                 best_score = cur_best_score
                 best_move = cur_best_move
                 last_completed_depth = depth
@@ -464,7 +470,7 @@ class MyPlayer(PlayerHex):
         return best
 
     # -----------------------------------------------------------------------
-    # Evaluation (Pure Amperage difference)
+    # Evaluation : difference d'amperage entre nous et l'adversaire
     # -----------------------------------------------------------------------
 
     def _evaluate_board(self, board, root_piece, geom):
@@ -485,7 +491,8 @@ class MyPlayer(PlayerHex):
         return score
 
     # -----------------------------------------------------------------------
-    # Electrical model with Variable Resistivity + Exact Solver
+    # Modele electrique :
+    # resistivite variable + resolution exacte du systeme creux
     # -----------------------------------------------------------------------
 
     def _calculate_amperage(self, board_key, target_piece, geom):
@@ -501,7 +508,8 @@ class MyPlayer(PlayerHex):
         opp = _other(target_piece)
         center = geom["center"]
         
-        # Apply Variable Resistivity + Opponent Halo
+        # Resistivite variable :
+        # le centre est plus favorable et le voisinage adverse devient plus couteux.
         resistances = []
         for idx, p in enumerate(board_key):
             if p == target_piece:
@@ -515,7 +523,8 @@ class MyPlayer(PlayerHex):
                 dist_sq = (row_dist**2 + col_dist**2) / 2.0
                 r_val = 1.0 + 5.0 * dist_sq
                 
-                # HALO EFFECT: Push current away from opponent to stop "Thick Wire" detours
+                # Effet de halo :
+                # on eloigne le courant des cases trop proches de l'adversaire.
                 opp_adj = sum(1 for nb in geom["neighbors"][idx] if board_key[nb] == opp)
                 r_val += 3.0 * opp_adj 
                 
@@ -527,11 +536,12 @@ class MyPlayer(PlayerHex):
         diag_extra = [0.0] * size
 
         # ---------------------------------------------------------
-        # SOURCE IMPEDANCE: Caps the injection singularity at the edges
+        # Impedance de contact :
+        # elle evite qu'une case de bord produise un courant exagere.
         # ---------------------------------------------------------
         R_CONTACT = 10.0 
 
-        # --- Standard resistor network ---
+        # --- Reseau resistif standard ---
         for idx in range(size):
             r_i = resistances[idx]
             if r_i == float("inf"):
@@ -548,7 +558,7 @@ class MyPlayer(PlayerHex):
             src, snk = 0.0, 0.0
             row, col = geom["rows"][idx], geom["cols"][idx]
             
-            # Use R_CONTACT to prevent the math from outputting 2000 Amps on edge plays
+            # R_CONTACT limite les effets extremes sur les bords.
             if direction == "HAUTBAS":
                 if row == 0: src = 2.0 / (R_CONTACT + r_i)
                 if row == n - 1: snk = 2.0 / (R_CONTACT + r_i)
@@ -557,13 +567,13 @@ class MyPlayer(PlayerHex):
                 if col == n - 1: snk = 2.0 / (R_CONTACT + r_i)
                 
             diag_sums[idx] += src + snk
-            current[idx] = src # Only the source injects current into the RHS
+            current[idx] = src # seule la source injecte du courant dans le second membre
 
-        # --- Bridge conductance (stone ↔ stone) ---
-        # Applique un bonus de conductance uniquement sur les ponts
-        # virtuels purs (deux intermédiaires vides entre alliés).
-        # Tous les autres cas sont laissés au réseau de résistances,
-        # qui les évalue déjà correctement.
+        # --- Conductance ajoutee pour les bridges pierre <-> pierre ---
+        # On renforce uniquement les ponts virtuels "propres",
+        # c'est-a-dire ceux dont les deux intermediaires sont vides.
+        # Les autres cas sont laisses au reseau resistif,
+        # qui les evalue deja correctement.
         seen_pairs = set()
         for idx in range(size):
             if board_key[idx] != target_piece:
@@ -574,7 +584,7 @@ class MyPlayer(PlayerHex):
 
                 v1, v2 = board_key[c1], board_key[c2]
                 if v1 != "." or v2 != ".":
-                    continue   # pont non vide : laissé au réseau
+                    continue   # pont partiellement occupe : laisse au reseau
 
                 pair = (min(idx, partner), max(idx, partner))
                 if pair in seen_pairs:
@@ -588,7 +598,7 @@ class MyPlayer(PlayerHex):
                 diag_extra[idx] += bc
                 diag_extra[partner] += bc
 
-        # --- Assemble matrix ---
+        # --- Assemblage de la matrice du systeme ---
         for idx in range(size):
             if resistances[idx] != float("inf"):
                 row_idx.append(idx); col_idx.append(idx)
@@ -606,7 +616,8 @@ class MyPlayer(PlayerHex):
                 col = i if direction == "HAUTBAS" else 0
                 idx = row * n + col
                 if resistances[idx] != float("inf"):
-                    # Calculate total output current using the SAME R_CONTACT cap
+                    # On reutilise la meme impedance de contact pour mesurer
+                    # le courant total de sortie.
                     total += (2.0 / (R_CONTACT + resistances[idx])) * (1.0 - voltages[idx])
             result = float(total)
         except Exception:
@@ -618,7 +629,7 @@ class MyPlayer(PlayerHex):
         return result
 
     # -----------------------------------------------------------------------
-    # Move ordering: pure voltage
+    # Ordre des coups : base sur le voltage
     # -----------------------------------------------------------------------
 
     def _ordered_moves(self, board, moves, piece, geom):
@@ -650,7 +661,8 @@ class MyPlayer(PlayerHex):
         return [idx for _, idx in scored]
 
     # -----------------------------------------------------------------------
-    # Post-search override: block critical opponent templates
+    # Ajustement apres recherche :
+    # on peut encore preferer un blocage critique contre un template adverse
     # -----------------------------------------------------------------------
 
     def _critical_template_override(self, board, chosen_move, empties,
@@ -723,7 +735,7 @@ class MyPlayer(PlayerHex):
         return None
 
     # -----------------------------------------------------------------------
-    # Utilities
+    # Outils utilitaires
     # -----------------------------------------------------------------------
 
     def _winning_moves(self, board, empties, piece, geom):
